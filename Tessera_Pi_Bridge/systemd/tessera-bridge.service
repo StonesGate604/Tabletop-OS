@@ -1,0 +1,17 @@
+[Unit]
+Description=Tessera Raspberry Pi bridge
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/tessera-bridge --config /etc/tessera/tessera.json
+Restart=on-failure
+RestartSec=2
+KillSignal=SIGINT
+TimeoutStopSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

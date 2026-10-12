@@ -1,0 +1,70 @@
+{
+  "network": {
+    "bind_address": "0.0.0.0",
+    "control_port": 7420,
+    "cursor_port": 7421,
+    "heartbeat_timeout_ms": 1500,
+    "max_control_line_bytes": 4096
+  },
+  "serial": {
+    "enabled": true,
+    "device": "/dev/ttyACM0",
+    "baud": 115200,
+    "reconnect_ms": 1000,
+    "handshake_delay_ms": 2200,
+    "keepalive_ms": 400,
+    "shutdown_grace_ms": 750
+  },
+  "board": {
+    "min_x_mm": 0.0,
+    "max_x_mm": 342.0,
+    "min_y_mm": 0.0,
+    "max_y_mm": 515.0,
+    "flip_x": false,
+    "flip_y": false
+  },
+  "cursor": {
+    "timeout_ms": 250,
+    "radius_px": 4,
+    "red": 0,
+    "green": 140,
+    "blue": 255
+  },
+  "trail": {
+    "lifetime_ms": 1500,
+    "max_points": 128,
+    "minimum_step_mm": 0.25,
+    "red": 0,
+    "green": 0,
+    "blue": 220
+  },
+  "display": {
+    "enabled": true,
+    "rows": 32,
+    "cols": 64,
+    "chain_length": 2,
+    "parallel": 1,
+    "brightness": 30,
+    "pwm_bits": 11,
+    "gpio_slowdown": 4,
+    "disable_hardware_pulsing": false,
+    "render_fps": 60,
+    "expected_width": 64,
+    "expected_height": 64,
+    "hardware_mapping": "regular",
+    "pixel_mapper": "Remap:64,64|0,0n|0,32n",
+    "drop_privileges": true,
+    "drop_user": "tessera",
+    "drop_group": "tessera"
+  },
+  "motion": {
+    "allow_network_commands": false,
+    "min_x_mm": 2.0,
+    "max_x_mm": 340.0,
+    "min_y_mm": 2.0,
+    "max_y_mm": 513.0,
+    "minimum_speed_mm_s": 0.5,
+    "maximum_speed_mm_s": 25.0,
+    "telemetry_timeout_ms": 500
+  }
+}
