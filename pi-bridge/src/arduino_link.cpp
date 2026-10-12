@@ -1,4 +1,4 @@
-#include "tessera/arduino_link.hpp"
+#include "tabletop_os/arduino_link.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -15,7 +15,7 @@
 #include <boost/asio/read_until.hpp>
 #include <boost/asio/write.hpp>
 
-namespace tessera {
+namespace tabletop_os {
 namespace {
 
 constexpr std::size_t kMaximumPendingWrites = 128;
@@ -364,4 +364,4 @@ void ArduinoLink::SendLine(std::string line, bool urgent) {
 
 bool ArduinoLink::IsConnected() const { return impl_->IsConnected(); }
 
-}  // namespace tessera
+}  // namespace tabletop_os

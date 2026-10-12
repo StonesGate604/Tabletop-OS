@@ -7,13 +7,13 @@
 #include <boost/asio.hpp>
 #include <nlohmann/json.hpp>
 
-#include "tessera/arduino_link.hpp"
-#include "tessera/config.hpp"
-#include "tessera/control_server.hpp"
-#include "tessera/cursor_receiver.hpp"
-#include "tessera/shared_state.hpp"
+#include "tabletop_os/arduino_link.hpp"
+#include "tabletop_os/config.hpp"
+#include "tabletop_os/control_server.hpp"
+#include "tabletop_os/cursor_receiver.hpp"
+#include "tabletop_os/shared_state.hpp"
 
-namespace tessera {
+namespace tabletop_os {
 
 class Application {
  public:
@@ -77,4 +77,4 @@ class Application {
   std::string pending_home_request_id_;
 };
 
-}  // namespace tessera
+}  // namespace tabletop_os

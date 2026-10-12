@@ -1,10 +1,10 @@
-# Tessera Arduino 正式下位机固件
+# Tabletop OS Arduino 正式下位机固件
 
 本目录是通过单项硬件测试之后使用的正式固件。它不会替换或修改 `Integrated_Hardware_Test`，需要回查单个部件时仍可重新上传测试程序。
 
 ## 上传前必须完成的配置
 
-打开 `Tessera_Lower_Controller.ino`，检查顶部的 **MACHINE CONFIGURATION**：
+打开 `TabletopOS_Lower_Controller.ino`，检查顶部的 **MACHINE CONFIGURATION**：
 
 1. `INVERT_A`、`INVERT_B`：保持驱动电气方向；当前正式固件使用 `X_AXIS_SIGN=1`、`Y_AXIS_SIGN=1`，并配合两个方向均为 `-1` 的回零方向，使 X/Y 分别向左、向下寻找起点限位。
 2. `SWITCH_NORMALLY_CLOSED`：目前默认 `false`，对应 COM + NO。

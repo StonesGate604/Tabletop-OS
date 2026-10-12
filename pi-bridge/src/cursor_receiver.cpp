@@ -1,4 +1,4 @@
-#include "tessera/cursor_receiver.hpp"
+#include "tabletop_os/cursor_receiver.hpp"
 
 #include <algorithm>
 #include <iostream>
@@ -8,7 +8,7 @@
 #include <utility>
 #include <vector>
 
-namespace tessera {
+namespace tabletop_os {
 namespace {
 
 using boost::asio::ip::udp;
@@ -186,4 +186,4 @@ void CursorReceiver::Start() { impl_->Start(); }
 
 void CursorReceiver::Stop() { impl_->Stop(); }
 
-}  // namespace tessera
+}  // namespace tabletop_os

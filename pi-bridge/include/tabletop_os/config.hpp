@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <string>
 
-namespace tessera {
+namespace tabletop_os {
 
 struct NetworkConfig {
   std::string bind_address = "0.0.0.0";
@@ -66,8 +66,8 @@ struct DisplayConfig {
   std::string hardware_mapping = "regular";
   std::string pixel_mapper = "Remap:64,64|0,0n|0,32n";
   bool drop_privileges = true;
-  std::string drop_user = "tessera";
-  std::string drop_group = "tessera";
+  std::string drop_user = "tabletop-os";
+  std::string drop_group = "tabletop-os";
 };
 
 struct MotionConfig {
@@ -93,4 +93,4 @@ struct AppConfig {
 
 AppConfig LoadConfig(const std::string& path);
 
-}  // namespace tessera
+}  // namespace tabletop_os

@@ -6,15 +6,15 @@
 
 #include <boost/asio.hpp>
 
-#include "tessera/application.hpp"
-#include "tessera/config.hpp"
-#include "tessera/hub75_renderer.hpp"
-#include "tessera/shared_state.hpp"
+#include "tabletop_os/application.hpp"
+#include "tabletop_os/config.hpp"
+#include "tabletop_os/hub75_renderer.hpp"
+#include "tabletop_os/shared_state.hpp"
 
 namespace {
 
 struct Arguments {
-  std::string config_path = "config/tessera.json";
+  std::string config_path = "config/tabletop-os.json";
   bool check_config = false;
 };
 
@@ -45,14 +45,14 @@ Arguments ParseArguments(int argc, char** argv) {
 int main(int argc, char** argv) {
   try {
     const Arguments arguments = ParseArguments(argc, argv);
-    const tessera::AppConfig config = tessera::LoadConfig(arguments.config_path);
+    const tabletop_os::AppConfig config = tabletop_os::LoadConfig(arguments.config_path);
     if (arguments.check_config) {
       std::cout << "Configuration is valid: " << arguments.config_path << std::endl;
       return 0;
     }
 
-    tessera::SharedState state(config);
-    tessera::Hub75Renderer renderer(config, state);
+    tabletop_os::SharedState state(config);
+    tabletop_os::Hub75Renderer renderer(config, state);
 
     // The matrix must be initialized before application threads are started.
     if (!renderer.Initialize()) {
@@ -61,7 +61,7 @@ int main(int argc, char** argv) {
     }
 
     boost::asio::io_context io;
-    tessera::Application application(io, config, state);
+    tabletop_os::Application application(io, config, state);
     boost::asio::signal_set signals(io, SIGINT, SIGTERM);
     signals.async_wait([&](const boost::system::error_code&, int signal) {
       std::cout << "Stopping on signal " << signal << std::endl;

@@ -29,36 +29,36 @@ for command_name in cmake g++ getent groupadd id install nproc realpath \
   fi
 done
 
-if ! getent group tessera >/dev/null; then
-  groupadd --system tessera
+if ! getent group tabletop-os >/dev/null; then
+  groupadd --system tabletop-os
 fi
-if ! id -u tessera >/dev/null 2>&1; then
-  useradd --system --gid tessera --no-create-home \
-    --shell /usr/sbin/nologin tessera
+if ! id -u tabletop-os >/dev/null 2>&1; then
+  useradd --system --gid tabletop-os --no-create-home \
+    --shell /usr/sbin/nologin tabletop-os
 fi
-usermod -aG dialout tessera
+usermod -aG dialout tabletop-os
 if getent group gpio >/dev/null; then
-  usermod -aG gpio tessera
+  usermod -aG gpio tabletop-os
 fi
 
 cmake -S "${project_root}" -B "${build_dir}" \
   -DCMAKE_BUILD_TYPE=Release \
-  -DTESSERA_ENABLE_HUB75=ON \
+  -DTABLETOP_OS_ENABLE_HUB75=ON \
   -DRGB_MATRIX_ROOT="${rgb_matrix_root}"
 cmake --build "${build_dir}" --parallel "$(nproc)"
 
-install -m 0755 "${build_dir}/tessera-bridge" /usr/local/bin/tessera-bridge
-install -d -m 0755 /etc/tessera
-if [[ ! -e /etc/tessera/tessera.json ]]; then
-  install -m 0644 "${project_root}/config/tessera.json" /etc/tessera/tessera.json
+install -m 0755 "${build_dir}/tabletop-os-bridge" /usr/local/bin/tabletop-os-bridge
+install -d -m 0755 /etc/tabletop-os
+if [[ ! -e /etc/tabletop-os/tabletop-os.json ]]; then
+  install -m 0644 "${project_root}/config/tabletop-os.json" /etc/tabletop-os/tabletop-os.json
 else
-  echo "Keeping existing /etc/tessera/tessera.json"
+  echo "Keeping existing /etc/tabletop-os/tabletop-os.json"
 fi
-install -m 0644 "${project_root}/systemd/tessera-bridge.service" \
-  /etc/systemd/system/tessera-bridge.service
+install -m 0644 "${project_root}/systemd/tabletop-os-bridge.service" \
+  /etc/systemd/system/tabletop-os-bridge.service
 systemctl daemon-reload
 
 echo "Installed. Set the stable Arduino path and panel mapping in:"
-echo "  /etc/tessera/tessera.json"
+echo "  /etc/tabletop-os/tabletop-os.json"
 echo "Then start with:"
-echo "  sudo systemctl enable --now tessera-bridge"
+echo "  sudo systemctl enable --now tabletop-os-bridge"

@@ -1,4 +1,4 @@
-# Tessera Development Roadmap
+# Tabletop OS Development Roadmap
 
 > Architecture note (2026-10-12): Pi-side cursor and trail composition below describes the retained v0.1 diagnostic baseline. The production direction is for the PC runtime to compose the final display frame and for the Pi to act as the HUB75 hardware output and safety bridge.
 
@@ -6,7 +6,7 @@
 
 ## 1. Updated Project Positioning
 
-Tessera is no longer only a board game assistant. The new version should be framed as a negotiation system between three actors:
+Tabletop OS is no longer only a board game assistant. The new version should be framed as a negotiation system between three actors:
 
 - Player: moves physical pieces, gestures, speaks, or types intent.
 - Game engine: maintains rules, state, constraints, and win conditions.
@@ -41,7 +41,7 @@ This is more practical than building a full electromagnetic coil matrix at the f
 - MCU: ESP32, Arduino-compatible controller, or GRBL-compatible motion board.
 - Motion: two stepper motors for CoreXY movement.
 - Magnet: MOSFET-controlled electromagnet with current limiting and heat safety.
-- Host: laptop running the dedicated Tessera / TabletopOS game-authoring runtime, vision/sensing, rule logic, LLM bridge, and UI. Supporting general-purpose engines such as Unity or Godot is not a current goal.
+- Host: laptop running the dedicated Tabletop OS game-authoring runtime, vision/sensing, rule logic, LLM bridge, and UI. Supporting general-purpose engines such as Unity or Godot is not a current goal.
 
 ## 3. System Architecture
 
@@ -166,14 +166,14 @@ Before building the full authoring environment, complete one end-to-end interact
 5. The Pi forwards the task to the Arduino and receives state telemetry during motion.
 6. The Pi returns reported actuator positions to the PC. The PC renders a blue-only motion trail into the final frame, while the Pi displays the pixels and keeps the faulty red output disabled. Old trail points fade out after a configurable lifetime.
 
-This demonstration uses the dedicated Tessera software path. It does not require a generic game engine, a plugin ecosystem, multiple pieces, or an LLM.
+This demonstration uses the dedicated Tabletop OS software path. It does not require a generic game engine, a plugin ecosystem, multiple pieces, or an LLM.
 
 ### Phase 1: Digital Simulation
 
 Goal: prove the interaction logic before hardware complexity.
 
 - Build a grid-based board state model.
-- Add draggable pieces in an early version of the dedicated Tessera authoring/runtime application.
+- Add draggable pieces in an early version of the dedicated Tabletop OS authoring/runtime application.
 - Add a deterministic rule engine.
 - Add text input for LLM-style commands, initially parsed with fixed rules.
 - Output validated actions as JSON.
@@ -232,7 +232,7 @@ Recommended demo format:
 ## 7. Design Rules
 
 - The LLM proposes; the rule engine decides.
-- Tessera uses its own game-authoring and runtime environment; general-purpose game-engine compatibility is not part of the current MVP.
+- Tabletop OS uses its own game-authoring and runtime environment; general-purpose game-engine compatibility is not part of the current MVP.
 - Physical motion should be slow, legible, and intentional.
 - Every AI-generated change should have a visible tabletop representation.
 - Keep the first demo turn-based rather than real-time.
@@ -245,7 +245,7 @@ The strongest story is the shift from "board game assistance" to "AI-mediated ta
 
 Suggested framing:
 
-> Tessera explores how physical game pieces can become a shared negotiation surface between human intention, computational rules, and generative AI. Instead of letting AI replace play, the project asks how AI can enter the game through a tangible interface that players can still touch, contest, and control.
+> Tabletop OS explores how physical game pieces can become a shared negotiation surface between human intention, computational rules, and generative AI. Instead of letting AI replace play, the project asks how AI can enter the game through a tangible interface that players can still touch, contest, and control.
 
 ## 9. Immediate Next Steps
 

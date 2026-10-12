@@ -1,6 +1,6 @@
-#include "tessera/hub75_renderer.hpp"
+#include "tabletop_os/hub75_renderer.hpp"
 
-#if !defined(TESSERA_ENABLE_HUB75) || !TESSERA_ENABLE_HUB75
+#if !defined(TABLETOP_OS_ENABLE_HUB75) || !TABLETOP_OS_ENABLE_HUB75
 
 #include <algorithm>
 #include <atomic>
@@ -9,7 +9,7 @@
 #include <memory>
 #include <thread>
 
-namespace tessera {
+namespace tabletop_os {
 
 class Hub75Renderer::Impl {
  public:
@@ -97,6 +97,6 @@ int Hub75Renderer::Width() const { return impl_->Width(); }
 
 int Hub75Renderer::Height() const { return impl_->Height(); }
 
-}  // namespace tessera
+}  // namespace tabletop_os
 
-#endif  // !defined(TESSERA_ENABLE_HUB75) || !TESSERA_ENABLE_HUB75
+#endif  // !defined(TABLETOP_OS_ENABLE_HUB75) || !TABLETOP_OS_ENABLE_HUB75

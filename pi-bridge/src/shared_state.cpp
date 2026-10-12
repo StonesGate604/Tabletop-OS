@@ -1,9 +1,9 @@
-#include "tessera/shared_state.hpp"
+#include "tabletop_os/shared_state.hpp"
 
 #include <cmath>
 #include <utility>
 
-namespace tessera {
+namespace tabletop_os {
 
 SharedState::SharedState(const AppConfig& config)
     : cursor_config_(config.cursor), trail_config_(config.trail) {}
@@ -188,4 +188,4 @@ void SharedState::PruneTrailLocked(SteadyTime now) {
   }
 }
 
-}  // namespace tessera
+}  // namespace tabletop_os

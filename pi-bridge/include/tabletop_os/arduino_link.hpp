@@ -6,9 +6,9 @@
 
 #include <boost/asio.hpp>
 
-#include "tessera/config.hpp"
+#include "tabletop_os/config.hpp"
 
-namespace tessera {
+namespace tabletop_os {
 
 class ArduinoLink {
  public:
@@ -31,4 +31,4 @@ class ArduinoLink {
   std::unique_ptr<Impl> impl_;
 };
 
-}  // namespace tessera
+}  // namespace tabletop_os

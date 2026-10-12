@@ -1,4 +1,4 @@
-#include "tessera/config.hpp"
+#include "tabletop_os/config.hpp"
 
 #include <algorithm>
 #include <fstream>
@@ -6,7 +6,7 @@
 
 #include <nlohmann/json.hpp>
 
-namespace tessera {
+namespace tabletop_os {
 namespace {
 
 using Json = nlohmann::json;
@@ -182,4 +182,4 @@ AppConfig LoadConfig(const std::string& path) {
   return config;
 }
 
-}  // namespace tessera
+}  // namespace tabletop_os

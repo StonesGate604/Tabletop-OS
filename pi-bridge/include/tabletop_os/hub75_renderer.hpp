@@ -4,10 +4,10 @@
 #include <memory>
 #include <thread>
 
-#include "tessera/config.hpp"
-#include "tessera/shared_state.hpp"
+#include "tabletop_os/config.hpp"
+#include "tabletop_os/shared_state.hpp"
 
-namespace tessera {
+namespace tabletop_os {
 
 class Hub75Renderer {
  public:
@@ -25,4 +25,4 @@ class Hub75Renderer {
   std::unique_ptr<Impl> impl_;
 };
 
-}  // namespace tessera
+}  // namespace tabletop_os

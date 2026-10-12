@@ -1,4 +1,4 @@
-# Tessera 项目上下文与当前架构基线
+# Tabletop OS 项目上下文与当前架构基线
 
 > 用途：给当前及后续 Codex 任务提供统一上下文。开始新任务时，先让 Codex 阅读本文件和相关模块的 README，再决定是否修改代码。
 >
@@ -8,7 +8,7 @@
 
 ## 1. 项目一句话
 
-Tessera 是一个结合摄像机感知、HUB75 灯光反馈、CoreXY 电磁驱动和游戏逻辑的实体数字桌游系统。最终目标是让玩家、确定性的游戏规则和 LLM 都能提出高层意图，并由桌面通过光与棋子运动作出可见、可验证的物理回应。
+Tabletop OS 是一个结合摄像机感知、HUB75 灯光反馈、CoreXY 电磁驱动和游戏逻辑的实体数字桌游系统。最终目标是让玩家、确定性的游戏规则和 LLM 都能提出高层意图，并由桌面通过光与棋子运动作出可见、可验证的物理回应。
 
 LLM 永远不直接控制电机。任何由 LLM 或游戏逻辑提出的动作，都必须先经过规则与安全层验证，再转成有限、明确的运动命令。
 
@@ -19,9 +19,9 @@ LLM 永远不直接控制电机。任何由 LLM 或游戏逻辑提出的动作�
 - `experiments/arduino/CoreXY_Controller/`：Arduino UNO R3 + CNC Shield V3 + A4988 的 CoreXY 调试固件与说明。
 - `experiments/arduino/Limit_Servo_Test/`：两个限位开关与舵机的独立测试程序。
 - `experiments/arduino/Integrated_Hardware_Test/`：两个步进电机、两个限位开关和舵机的联合测试程序；实物测试已通过。
-- `firmware/arduino/Tessera_Lower_Controller/`：正式下位机固件及协议说明。配置为 X=342 mm、Y=515 mm，两个限位均位于最小端起点；当前正式固件使用 `X_AXIS_SIGN=1`、`Y_AXIS_SIGN=1`，两个回零方向均为 `-1`，使 X/Y 分别向左、向下寻找起点限位。两个 A4988 驱动插槽下的三个细分跳帽均已安装，固件按 1/16 细分、GT2 皮带和 16 齿同步轮配置为 `100 steps/mm`。
+- `firmware/arduino/TabletopOS_Lower_Controller/`：正式下位机固件及协议说明。配置为 X=342 mm、Y=515 mm，两个限位均位于最小端起点；当前正式固件使用 `X_AXIS_SIGN=1`、`Y_AXIS_SIGN=1`，两个回零方向均为 `-1`，使 X/Y 分别向左、向下寻找起点限位。两个 A4988 驱动插槽下的三个细分跳帽均已安装，固件按 1/16 细分、GT2 皮带和 16 齿同步轮配置为 `100 steps/mm`。
 - `experiments/raspberry-pi/gpio_high_test.py`：已有 GPIO/HUB75 方向的测试代码。
-- `docs/Tessera_Development_Roadmap.md` 与 `docs/Tessera_中文路径规划图.md`：较长期的产品与研究路线。
+- `docs/Tabletop_OS_Development_Roadmap.md` 与 `docs/Tabletop_OS_中文路径规划图.md`：较长期的产品与研究路线。
 
 旧版 `CoreXY_Controller` 调试固件的真实能力：
 
@@ -32,7 +32,7 @@ LLM 永远不直接控制电机。任何由 LLM 或游戏逻辑提出的动作�
 - 尚未实现连续更新目标的 `SET_TARGET`、命令编号、周期遥测、WebSocket 桥接或完整 HUB75 联动。
 - 该旧版仍可用于手动点动排障，但不再作为正式通信固件。
 
-当前 `Tessera_Lower_Controller` 正式固件的真实能力：
+当前 `TabletopOS_Lower_Controller` 正式固件的真实能力：
 
 - 非阻塞执行自动 `HOME`、带编号的 `MOVE_TO` 和最新值语义的 `SET_TARGET`；运动过程中仍持续解析串口。
 - 返回 `ACK`、`STARTED`、`COMPLETED`、`ERROR` 和可选周期 `STATE` 快照，并拒绝旧任务编号或倒序目标序号；周期遥测上电默认关闭，可用 `TELEMETRY ON/OFF` 控制。
@@ -80,11 +80,11 @@ Raspberry Pi 回传实际坐标 → PC 生成蓝色轨迹 → Pi 显示最终帧
 
 ## 4. 三层职责
 
-### PC：Tessera 专用编写程序、感知与高层决策
+### PC：Tabletop OS 专用编写程序、感知与高层决策
 
 第一版负责：
 
-- 运行专门为 Tessera / TabletopOS 设计的游戏编写与运行程序，不以兼容 Unity、Godot、p5.js 等通用游戏引擎为目标；
+- 运行专门为 Tabletop OS 设计的游戏编写与运行程序，不以兼容 Unity、Godot、p5.js 等通用游戏引擎为目标；
 - 读取鼠标或摄像机输入；
 - 识别手的位置以及抓取、移动、释放/确认手势；
 - 维护 `IDLE → SELECTED → AIMING → COMMITTED → MOVING` 的本次交互状态；
@@ -176,7 +176,7 @@ SET_TARGET 503 330.0 420.0
 
 ### 5.3 当前实现与目标协议的关系
 
-旧版 `CoreXY_Controller` 的 `MOVE x y speed` 是 `MOVE_TO` 的早期原型，没有 `command_id`，并且运动期间阻塞；它不再作为正式通信固件。当前 `Tessera_Lower_Controller` 已实现非阻塞、带编号的 `MOVE_TO` 和最新值语义的 `SET_TARGET`。
+旧版 `CoreXY_Controller` 的 `MOVE x y speed` 是 `MOVE_TO` 的早期原型，没有 `command_id`，并且运动期间阻塞；它不再作为正式通信固件。当前 `TabletopOS_Lower_Controller` 已实现非阻塞、带编号的 `MOVE_TO` 和最新值语义的 `SET_TARGET`。
 
 ## 6. 最小通信协议建议
 
@@ -467,10 +467,10 @@ Pi Bridge v0.1 中的 `latest_hand_cursor`、`trail_history` 和本地图层合�
 - 能识别棋子未跟上、标记丢失或终点不符；
 - 此时再引入系统动作与玩家动作的归属判断。
 
-### M6：Tessera 专用游戏编写程序与游戏逻辑
+### M6：Tabletop OS 专用游戏编写程序与游戏逻辑
 
 - 毫米坐标稳定映射到格子；
-- 使用自研的 Tessera / TabletopOS 游戏编写与运行环境描述棋盘、棋子、规则、视觉效果和物理动作；
+- 使用自研的 Tabletop OS 游戏编写与运行环境描述棋盘、棋子、规则、视觉效果和物理动作；
 - 不把兼容通用游戏引擎作为当前目标；
 - 合法动作才会被转换为物理任务；
 - 物理移动经视觉确认后才提交逻辑状态；
@@ -495,6 +495,6 @@ Pi Bridge v0.1 中的 `latest_hand_cursor`、`trail_history` 和本地图层合�
 
 可以在新任务开头使用：
 
-> 请先阅读 `Tessera_Project_Context.md`，并把它视为当前设计基线；同时检查目标模块的 README 和实际代码，不要把文档中的未来协议当成已实现功能。只推进我指定的当前里程碑，保留现有实物安全约束，并在修改后说明哪些内容已验证、哪些仍需上机验证。
+> 请先阅读 `Tabletop_OS_Project_Context.md`，并把它视为当前设计基线；同时检查目标模块的 README 和实际代码，不要把文档中的未来协议当成已实现功能。只推进我指定的当前里程碑，保留现有实物安全约束，并在修改后说明哪些内容已验证、哪些仍需上机验证。
 
 如果新实验推翻了本文件中的假设，应先记录实测证据，再更新本文件，而不是让代码和架构说明长期分叉。

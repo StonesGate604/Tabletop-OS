@@ -5,7 +5,7 @@
 #include <string.h>
 
 // ---------------------------------------------------------------------------
-// Tessera lower controller for Arduino UNO R3 + CNC Shield V3
+// Tabletop OS lower controller for Arduino UNO R3 + CNC Shield V3
 // Protocol version: 1
 //
 // IMPORTANT: Measure the real machine, edit the MACHINE CONFIGURATION section,
@@ -968,7 +968,7 @@ void processCommand(char *line) {
     return;
   }
   if (count == 1 && !strcmp(tokens[0], "IDENTIFY")) {
-    Serial.println(F("READY TESSERA_LOWER 1"));
+    Serial.println(F("READY TABLETOP_OS_LOWER 1"));
     return;
   }
   if (count == 1 && !strcmp(tokens[0], "STATUS")) {
@@ -1188,7 +1188,7 @@ void setup() {
   }
 
   Serial.begin(115200);
-  Serial.println(F("READY TESSERA_LOWER 1"));
+  Serial.println(F("READY TABLETOP_OS_LOWER 1"));
   printConfiguration();
   if (!validMachineConfiguration()) {
     Serial.println(F("LOCKED: confirm machine configuration before automatic motion"));

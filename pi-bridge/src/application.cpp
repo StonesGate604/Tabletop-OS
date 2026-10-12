@@ -1,4 +1,4 @@
-#include "tessera/application.hpp"
+#include "tabletop_os/application.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -9,7 +9,7 @@
 #include <utility>
 #include <vector>
 
-namespace tessera {
+namespace tabletop_os {
 namespace {
 
 using Json = nlohmann::json;
@@ -93,7 +93,7 @@ void Application::Start() {
   cursor_receiver_.Start();
   arduino_.Start();
   ScheduleMaintenance();
-  std::cout << "Tessera bridge listening: TCP " << config_.network.control_port
+  std::cout << "Tabletop OS bridge listening: TCP " << config_.network.control_port
             << ", UDP " << config_.network.cursor_port << std::endl;
   if (!config_.motion.allow_network_commands) {
     std::cout << "Motion safety lock is ON: HOME and MOVE_TO are disabled" << std::endl;
@@ -364,9 +364,10 @@ void Application::HandleSerialLine(const std::string& line) {
 
   try {
     if (words[0] == "READY") {
-      const bool compatible = words.size() >= 3 &&
-                              words[1] == "TESSERA_LOWER" &&
-                              words[2] == "1";
+      const bool known_identity = words.size() >= 3 &&
+                                  (words[1] == "TABLETOP_OS_LOWER" ||
+                                   words[1] == "TESSERA_LOWER");
+      const bool compatible = known_identity && words[2] == "1";
       boost::system::error_code ignored;
       handshake_timer_.cancel(ignored);
       state_.BeginArduinoSession();
@@ -684,4 +685,4 @@ bool Application::ValidateProtocolVersion(const Json& message,
   return true;
 }
 
-}  // namespace tessera
+}  // namespace tabletop_os

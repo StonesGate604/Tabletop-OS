@@ -1,11 +1,11 @@
 [Unit]
-Description=Tessera Raspberry Pi bridge
+Description=Tabletop OS Raspberry Pi bridge
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/tessera-bridge --config /etc/tessera/tessera.json
+ExecStart=/usr/local/bin/tabletop-os-bridge --config /etc/tabletop-os/tabletop-os.json
 Restart=on-failure
 RestartSec=2
 KillSignal=SIGINT

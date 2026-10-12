@@ -6,9 +6,9 @@
 #include <mutex>
 #include <string>
 
-#include "tessera/config.hpp"
+#include "tabletop_os/config.hpp"
 
-namespace tessera {
+namespace tabletop_os {
 
 using SteadyTime = std::chrono::steady_clock::time_point;
 
@@ -96,4 +96,4 @@ class SharedState {
   std::deque<TrailPoint> trail_;
 };
 
-}  // namespace tessera
+}  // namespace tabletop_os

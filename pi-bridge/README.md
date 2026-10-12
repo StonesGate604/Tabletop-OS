@@ -1,4 +1,4 @@
-# Tessera Pi Bridge
+# Tabletop OS Pi Bridge
 
 Pi Bridge v0.1 负责 TCP/UDP、Arduino 串口、安全联锁以及 HUB75 输出。当前内置圆形光标和蓝色拖影只用于硬件链路诊断。
 
@@ -11,7 +11,15 @@ sudo apt install -y cmake g++ libboost-dev nlohmann-json3-dev
 sudo bash pi-bridge/tools/install_pi.sh /home/pi/rpi-rgb-led-matrix
 ```
 
-安装脚本会创建低权限 `tessera` 用户、构建 Release 版本、安装 systemd 服务，并保留已经存在的 `/etc/tessera/tessera.json`。
+安装脚本会创建低权限 `tabletop-os` 用户、构建 Release 版本、安装 systemd 服务，并保留已经存在的 `/etc/tabletop-os/tabletop-os.json`。
+
+如果 Pi 上曾安装并启用改名前的服务，升级前先停用它，避免旧、新服务同时占用网络端口、串口和 HUB75：
+
+```bash
+sudo systemctl disable --now tessera-bridge
+```
+
+然后使用新的安装脚本重新构建。不要复用旧构建目录，也不要用旧配置文件直接覆盖新配置；请把串口路径、面板映射等硬件参数逐项迁移到 `/etc/tabletop-os/tabletop-os.json`。
 
 首次启动前至少要修改：
 
@@ -22,8 +30,8 @@ sudo bash pi-bridge/tools/install_pi.sh /home/pi/rpi-rgb-led-matrix
 启动：
 
 ```bash
-sudo systemctl enable --now tessera-bridge
-sudo journalctl -u tessera-bridge -f
+sudo systemctl enable --now tabletop-os-bridge
+sudo journalctl -u tabletop-os-bridge -f
 ```
 
 ## Windows 主机诊断构建
@@ -33,9 +41,9 @@ Windows 构建使用无 HUB75 的 stub 渲染器，可检查网络、配置和�
 需要先让 CMake 能找到 Boost 1.67+ 头文件和 `nlohmann-json`；可以使用 vcpkg、系统包管理器或显式 CMake 工具链。仓库不内置这两个第三方依赖。
 
 ```powershell
-cmake -S pi-bridge -B pi-bridge/build-host -DTESSERA_ENABLE_HUB75=OFF
+cmake -S pi-bridge -B pi-bridge/build-host -DTABLETOP_OS_ENABLE_HUB75=OFF
 cmake --build pi-bridge/build-host --config Release
-./pi-bridge/build-host/Release/tessera-bridge.exe --config ./pi-bridge/config/tessera.json
+./pi-bridge/build-host/Release/tabletop-os-bridge.exe --config ./pi-bridge/config/tabletop-os.json
 ```
 
 ## 从电脑手工测试

@@ -1,10 +1,10 @@
-# Tessera 中文路径规划图
+# Tabletop OS 中文路径规划图
 
 > 架构更新（2026-10-12）：下文由 Pi 绘制光标和拖影的部分是保留的 v0.1 诊断方案。正式方向改为由 PC 合成最终画面，Pi 只负责 HUB75 硬件输出、串口桥接和安全控制。
 
 ## 1. 项目一句话
 
-Tessera 是一个结合实体棋子、桌面感知、电磁 CoreXY 驱动与 LLM 输入的 tangible media 桌面游戏系统。PC 端将使用专门为 Tessera / TabletopOS 设计的游戏编写与运行程序，不以兼容 Unity、Godot 等通用游戏引擎为目标。它研究的问题不是“AI 怎么替人玩游戏”，而是“AI 如何通过一个可触摸、可协商、可拒绝的物理界面进入游戏过程”。
+Tabletop OS 是一个结合实体棋子、桌面感知、电磁 CoreXY 驱动与 LLM 输入的 tangible media 桌面游戏系统。PC 端将使用专门为 Tabletop OS 设计的游戏编写与运行程序，不以兼容 Unity、Godot 等通用游戏引擎为目标。它研究的问题不是“AI 怎么替人玩游戏”，而是“AI 如何通过一个可触摸、可协商、可拒绝的物理界面进入游戏过程”。
 
 ## 2. 总体路径图
 
@@ -85,7 +85,7 @@ flowchart LR
 
 ```mermaid
 gantt
-    title Tessera MVP 路线
+    title Tabletop OS MVP 路线
     dateFormat  YYYY-MM-DD
     axisFormat  %m/%d
 
@@ -161,9 +161,9 @@ gantt
 
 ## 7. 推荐作品集表述
 
-> Tessera explores AI-mediated tangible play: a tabletop system where physical pieces, computational rules, and generative AI negotiate through shared spatial interaction. Instead of replacing the player, AI becomes a visible and contestable participant in the game, expressed through light, movement, and rule changes on the board.
+> Tabletop OS explores AI-mediated tangible play: a tabletop system where physical pieces, computational rules, and generative AI negotiate through shared spatial interaction. Instead of replacing the player, AI becomes a visible and contestable participant in the game, expressed through light, movement, and rule changes on the board.
 
 中文版本：
 
-> Tessera 探索的是一种由 AI 介入的可触摸游戏系统。玩家的身体动作、游戏规则与生成式 AI 在同一张物理桌面上协商。AI 不再只是屏幕中的文本回应，而是通过光效、棋子移动和规则变化进入可被玩家理解、质疑和控制的游戏空间。
+> Tabletop OS 探索的是一种由 AI 介入的可触摸游戏系统。玩家的身体动作、游戏规则与生成式 AI 在同一张物理桌面上协商。AI 不再只是屏幕中的文本回应，而是通过光效、棋子移动和规则变化进入可被玩家理解、质疑和控制的游戏空间。
 

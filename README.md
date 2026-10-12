@@ -1,6 +1,6 @@
-# Tessera / TabletopOS
+# Tabletop OS
 
-Tessera 是一个把手势感知、HUB75 灯光反馈和 CoreXY 磁力棋子运动结合起来的实体数字桌游平台。
+Tabletop OS 是一个把手势感知、HUB75 灯光反馈和 CoreXY 磁力棋子运动结合起来的实体数字桌游平台。
 
 当前仓库首先打通一条最小硬件链路：电脑发送交互与运动意图，Raspberry Pi 负责网络、HUB75 和串口桥接，Arduino 负责实时机构控制与独立安全停止。
 
@@ -15,7 +15,7 @@ Tessera 是一个把手势感知、HUB75 灯光反馈和 CoreXY 磁力棋子运�
 
 ## 职责边界
 
-- **PC / Tessera Runtime**：理解棋子和游戏，生成光标、移动轨迹、攻击特效、动画以及最终画面。
+- **PC / Tabletop OS Runtime**：理解棋子和游戏，生成光标、移动轨迹、攻击特效、动画以及最终画面。
 - **Raspberry Pi**：接收最终像素帧并输出到 HUB75，同时处理可靠控制、状态回传、串口桥接和安全联锁。Pi 不应理解“攻击”“棋子”或“拖影”等游戏概念。
 - **Arduino**：执行 CoreXY、限位、回零、舵机/磁铁与实时安全控制。
 
@@ -26,7 +26,7 @@ Pi Bridge v0.1 目前仍会根据光标数据和 Arduino 位置在本地绘制�
 ```text
 pc-runtime/                         PC 程序的职责与后续入口（代码尚未开始）
 pi-bridge/                          Raspberry Pi 服务
-firmware/arduino/Tessera_Lower_Controller/
+firmware/arduino/TabletopOS_Lower_Controller/
                                     Arduino 正式固件
 experiments/arduino/                Arduino 单项与集成测试草图
 experiments/raspberry-pi/           Raspberry Pi GPIO 测试脚本
@@ -38,7 +38,7 @@ docs/                               项目上下文、路线和研究说明
 ## 最短上手路径
 
 1. 使用 Arduino IDE 打开并上传：
-   `firmware/arduino/Tessera_Lower_Controller/Tessera_Lower_Controller.ino`
+   `firmware/arduino/TabletopOS_Lower_Controller/TabletopOS_Lower_Controller.ino`
 2. 在 Pi 上准备并编译 `hzeller/rpi-rgb-led-matrix`。
 3. 安装 Pi Bridge：
 
@@ -47,11 +47,11 @@ docs/                               项目上下文、路线和研究说明
    sudo bash pi-bridge/tools/install_pi.sh /home/pi/rpi-rgb-led-matrix
    ```
 
-4. 修改 `/etc/tessera/tessera.json` 中的稳定串口路径和面板映射。
+4. 修改 `/etc/tabletop-os/tabletop-os.json` 中的稳定串口路径和面板映射。
 5. 启动服务：
 
    ```bash
-   sudo systemctl enable --now tessera-bridge
+   sudo systemctl enable --now tabletop-os-bridge
    ```
 
 详细构建和手工测试方法见 [Pi Bridge 说明](pi-bridge/README.md)，通信边界见 [协议说明](protocol/README.md)。
@@ -73,10 +73,10 @@ docs/                               项目上下文、路线和研究说明
 
 ## 文档
 
-- [项目上下文与诊断基线](docs/Tessera_Project_Context.md)
-- [开发路线](docs/Tessera_Development_Roadmap.md)
-- [中文研究路径](docs/Tessera_中文路径规划图.md)
-- [正式 Arduino 固件说明](firmware/arduino/Tessera_Lower_Controller/README_中文.md)
+- [项目上下文与诊断基线](docs/Tabletop_OS_Project_Context.md)
+- [开发路线](docs/Tabletop_OS_Development_Roadmap.md)
+- [中文研究路径](docs/Tabletop_OS_中文路径规划图.md)
+- [正式 Arduino 固件说明](firmware/arduino/TabletopOS_Lower_Controller/README_中文.md)
 
 ## License
 

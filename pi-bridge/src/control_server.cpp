@@ -1,4 +1,4 @@
-#include "tessera/control_server.hpp"
+#include "tabletop_os/control_server.hpp"
 
 #include <algorithm>
 #include <array>
@@ -11,7 +11,7 @@
 #include <string>
 #include <utility>
 
-namespace tessera {
+namespace tabletop_os {
 namespace {
 
 using boost::asio::ip::tcp;
@@ -493,4 +493,4 @@ void ControlServer::Send(nlohmann::json message, bool replaceable_status) {
 
 bool ControlServer::HasClient() const { return impl_->HasClient(); }
 
-}  // namespace tessera
+}  // namespace tabletop_os

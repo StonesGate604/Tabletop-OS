@@ -6,9 +6,9 @@
 #include <boost/asio.hpp>
 #include <nlohmann/json.hpp>
 
-#include "tessera/config.hpp"
+#include "tabletop_os/config.hpp"
 
-namespace tessera {
+namespace tabletop_os {
 
 class CursorReceiver {
  public:
@@ -27,4 +27,4 @@ class CursorReceiver {
   std::unique_ptr<Impl> impl_;
 };
 
-}  // namespace tessera
+}  // namespace tabletop_os
