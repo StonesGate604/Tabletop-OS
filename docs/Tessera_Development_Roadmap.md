@@ -1,5 +1,7 @@
 # Tessera Development Roadmap
 
+> Architecture note (2026-10-12): Pi-side cursor and trail composition below describes the retained v0.1 diagnostic baseline. The production direction is for the PC runtime to compose the final display frame and for the Pi to act as the HUB75 hardware output and safety bridge.
+
 > Direction: evolve the earlier translucent board game assistance system into a physical-digital tabletop where players, game logic, and an LLM can all become valid inputs, and the board can respond through light plus physical motion.
 
 ## 1. Updated Project Positioning
@@ -157,12 +159,12 @@ Use a small message protocol between modules. This keeps hardware, game logic, a
 
 Before building the full authoring environment, complete one end-to-end interaction with a single known magnetic piece:
 
-1. Whenever the hand is tracked inside the active table area, the HUB75 display draws a circular cursor directly beneath its calibrated position.
+1. Whenever the hand is tracked inside the active table area, the PC runtime draws a circular cursor into the final 64×64 frame and sends it to the Pi for HUB75 output.
 2. The user places the hand above the piece and makes a grab gesture to select it; grabbing changes the cursor style but does not move the mechanism.
-3. Hand movement continuously updates both the HUB75 cursor and the target preview; the mechanism does not chase the hand.
+3. Hand movement continuously updates both the cursor and target preview in the PC-composited frame; the mechanism does not chase the hand.
 4. A release or explicit confirmation gesture commits one numbered `MOVE_TO` task.
 5. The Pi forwards the task to the Arduino and receives state telemetry during motion.
-6. Independently of the hand cursor, the HUB75 display renders a blue-only motion trail from the reported actuator position. The red component stays at zero, and old trail points fade out after a configurable lifetime.
+6. The Pi returns reported actuator positions to the PC. The PC renders a blue-only motion trail into the final frame, while the Pi displays the pixels and keeps the faulty red output disabled. Old trail points fade out after a configurable lifetime.
 
 This demonstration uses the dedicated Tessera software path. It does not require a generic game engine, a plugin ecosystem, multiple pieces, or an LLM.
 
@@ -249,8 +251,8 @@ Suggested framing:
 
 1. Revalidate homing, distance, direction, soft limits, and safe speeds with the current 1/16 microstep, 100 steps/mm Arduino configuration.
 2. Build the Pi serial bridge for numbered `MOVE_TO` tasks and `STATE` telemetry.
-3. Render a blue-only fading trail on HUB75 from Arduino position telemetry; do not use the faulty red channel.
-4. Build a mouse-driven live HUB75 circular cursor, then add selection, target preview, and confirm behavior without continuously driving the mechanism.
+3. Use the retained Pi-side blue trail and cursor as a diagnostic to validate Arduino telemetry, HUB75 mapping, and the faulty red-channel mask.
+4. Build the PC final-frame compositor and Pi frame receiver, then create a mouse-driven cursor, selection, target preview, trail, and confirm behavior without continuously driving the mechanism.
 5. Replace mouse input with calibrated camera-based hand position plus grab and release/confirm gestures; the live cursor behavior must remain unchanged.
 6. Complete the single-piece end-to-end demonstration before adding AprilTag identity, board rules, multiple games, or LLM input.
 

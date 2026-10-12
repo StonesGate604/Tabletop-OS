@@ -1,5 +1,22 @@
 __pycache__/
 *.py[cod]
 
-# Local scratch files.
+# Local builds and scratch files.
+**/build*/
+**/.cache/
 /tmp/
+
+# Editor, OS, and local agent state.
+/.agents/
+/.codex/
+.vscode/
+.idea/
+*.user
+*.suo
+.DS_Store
+Thumbs.db
+
+# Local environment values must not be committed.
+.env
+.env.*
+!.env.example
