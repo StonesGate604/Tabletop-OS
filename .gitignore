@@ -1,5 +1,7 @@
 __pycache__/
 *.py[cod]
+**/.venv/
+**/outputs/
 
 # Local builds and scratch files.
 **/build*/
