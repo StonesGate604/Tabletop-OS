@@ -1,0 +1,20 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "title":"Tabletop OS client control requests v1",
+  "type":"object",
+  "required":["type"],
+  "properties":{
+    "v":{"const":1,"description":"Optional for compatibility; PC always sends it"},
+    "type":{"enum":["heartbeat","ping","status.get","display.open","motion.home","motion.move_to","motion.stop","actuator.servo","actuator.servo_off"]},
+    "request_id":{"oneOf":[{"type":"string","minLength":1,"maxLength":128},{"type":"integer"}]},
+    "session":{"type":"integer","minimum":1,"maximum":4294967295},
+    "x_mm":{"type":"number"},"y_mm":{"type":"number"},"speed_mm_s":{"type":"number"},
+    "angle":{"type":"integer","minimum":0,"maximum":180}
+  },
+  "allOf":[
+    {"if":{"properties":{"type":{"const":"display.open"}}},"then":{"required":["session"]}},
+    {"if":{"properties":{"type":{"const":"motion.home"}}},"then":{"required":["request_id"]}},
+    {"if":{"properties":{"type":{"const":"motion.move_to"}}},"then":{"required":["request_id","x_mm","y_mm","speed_mm_s"]}},
+    {"if":{"properties":{"type":{"const":"actuator.servo"}}},"then":{"required":["request_id","angle"]}}
+  ]
+}

@@ -10,6 +10,7 @@ struct NetworkConfig {
   std::string bind_address = "0.0.0.0";
   std::uint16_t control_port = 7420;
   std::uint16_t cursor_port = 7421;
+  std::uint16_t frame_port = 7422;
   int heartbeat_timeout_ms = 1500;
   std::size_t max_control_line_bytes = 4096;
 };
@@ -51,6 +52,9 @@ struct TrailConfig {
 };
 
 struct DisplayConfig {
+  std::string mode = "frames";
+  int frame_timeout_ms = 250;
+  int assembly_timeout_ms = 100;
   bool enabled = true;
   int rows = 32;
   int cols = 64;
@@ -79,6 +83,9 @@ struct MotionConfig {
   double minimum_speed_mm_s = 0.5;
   double maximum_speed_mm_s = 25.0;
   int telemetry_timeout_ms = 500;
+  int command_timeout_ms = 180000;
+  int stop_timeout_ms = 2500;
+  int servo_timeout_ms = 1500;
 };
 
 struct AppConfig {

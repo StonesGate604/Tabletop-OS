@@ -1,6 +1,10 @@
 # Tabletop OS Pi Bridge
 
-Pi Bridge v0.1 负责 TCP/UDP、Arduino 串口、安全联锁以及 HUB75 输出。当前内置圆形光标和蓝色拖影只用于硬件链路诊断。
+Pi Bridge v0.1 负责 TCP/UDP、Arduino 串口、安全联锁以及 HUB75 输出。默认 `display.mode=frames` 显示 PC 最终 RGB 帧；内置圆形光标和蓝色拖影仅在 `diagnostic` 模式用于硬件链路诊断。
+
+TCP 7420 负责控制与显示会话，UDP 7422 使用 TOSF v1 重组 64×64 RGB888；UDP 7421 保留旧诊断光标。详见[协议](../protocol/README.md)和[技术说明书](../docs/TABLETOP_OS_TECHNICAL_GUIDE_ZH.md)。
+
+新版 HOME/MOVE/SERVO 要求正式固件 CONFIG 输出 LAST_TASK_ID；先更新 Uno 固件，避免旧行为和编号不同步。PC 另有舵机未标定锁，Pi 默认网络运动锁仍保留。
 
 ## Raspberry Pi 安装
 
@@ -46,7 +50,20 @@ cmake --build pi-bridge/build-host --config Release
 ./pi-bridge/build-host/Release/tabletop-os-bridge.exe --config ./pi-bridge/config/tabletop-os.json
 ```
 
+无硬件运行须复制配置并设 serial.enabled=false、display.enabled=false、bind_address=127.0.0.1。Ninja 单配置产物通常直接在 build-host 下。
+
+## 软件测试
+
+```powershell
+ctest --test-dir pi-bridge/build-host -C Release --output-on-failure
+python pi-bridge/tests/test_bridge.py --bridge pi-bridge/build-host/Release/tabletop-os-bridge.exe -v
+```
+
+路径随生成器调整。CTest 包含帧组包和真实固件配假 HAL；黑盒脚本自动运行明确禁用串口/GPIO的本机服务。它们不证明 Pi 电气、USB 或 HUB75 实物通过。
+
 ## 从电脑手工测试
+
+send_cursor 需要 deployed 配置设 display.mode=diagnostic 并重启；恢复正式 PC 画面时改回 frames。
 
 ```powershell
 ./pi-bridge/tools/send_control.ps1 -Pi 192.168.1.2 -Command status

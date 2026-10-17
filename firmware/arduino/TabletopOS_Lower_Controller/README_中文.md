@@ -21,6 +21,7 @@
 
 - 上电：步进驱动禁用、舵机信号关闭，状态为 `UNREFERENCED`。
 - `HOME`：自动使能电机，依次对 X、Y 执行“快找—退回—慢找—退回”，完成后进入 `IDLE`。
+- 当前机构为舵机升降永磁铁：上位机应先发送已标定的抬起角度，等待稳定再 HOME。HOME 保持已有舵机目标；Pi 每 2 秒刷新以避免 10 秒信号超时。安全角度尚未标定，PC 默认锁住实际动作，不能直接把仿真 60/120 度用于实物。
 - 快速寻找限位允许比标称行程多走 80 mm 的脉冲预算，用于覆盖当前传动参数的小幅误差；限位释放和最终退回仍保持独立的 20 mm 安全上限。
 - `MOVE_TO`：执行一个带编号的点到点任务，完成后返回 `COMPLETED <id>`。
 - `SET_TARGET`：进入连续跟随模式。更大的序号覆盖旧目标，旧序号不会倒退执行。
@@ -43,9 +44,11 @@
 | 命令 | 含义 |
 |---|---|
 | `PING` | 连通检查，返回 `PONG 1` |
+| `IDENTIFY` | 返回 `READY TABLETOP_OS_LOWER 1` |
 | `CONFIG` | 输出当前关键机械配置 |
 | `STATUS` | 立即输出 `STATE` 和 `IO` |
 | `TELEMETRY ON` / `TELEMETRY OFF` | 开启 / 关闭周期状态；上电默认关闭 |
+| `WATCHDOG ON` / `WATCHDOG OFF` | 开关 1500 ms 主机失联制动；上电默认关闭，Pi 自动开启 |
 | `ENABLE` | 使能步进驱动；不会建立坐标参考 |
 | `HOME` | 自动回零；配置确认后才能执行 |
 | `MOVE_TO id x y speed` | 编号任务，坐标 mm，速度 mm/s |
@@ -58,6 +61,8 @@
 | `CLEAR_ERROR` | 清除错误状态；之后仍必须重新 `HOME` |
 
 `MOVE_TO` 的 `id` 必须大于此前接受过的任务编号。任务执行时重复发送同一个活动编号只会再次收到 `ACK`，不会重复启动；旧编号返回 `ERROR STALE_ID`。
+
+比较使用32位差值，支持有限窗口回绕。CONFIG 现在含 `LAST_TASK_ID`，Pi 据此分配下一个编号并跳过0，缺此字段的旧固件不能执行新版 Pi 的 MOVE。uint32 解析显式拒绝溢出。
 
 `SET_TARGET` 适用于鼠标或手部跟随。上位机应以稳定频率发送最新目标，例如 20–30 Hz，并持续递增 `seq`。不要把大量未来目标作为队列一次性下发。
 
@@ -89,7 +94,7 @@ STATE <telemetry_seq> <mode> <active_id> <actual_x> <actual_y> <target_x> <targe
 输入/故障状态只在 `STATUS` 或启动时额外输出：
 
 ```text
-IO X_LIMIT=0 Y_LIMIT=0 MOTORS=1 REFERENCED=1 SERVO=OFF FAULT=NONE
+IO X_LIMIT=0 Y_LIMIT=0 MOTORS=1 WATCHDOG=ON REFERENCED=1 SERVO=OFF FAULT=NONE
 ```
 
 错误统一为：

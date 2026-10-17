@@ -5,6 +5,7 @@
 #include <deque>
 #include <mutex>
 #include <string>
+#include <vector>
 
 #include "tabletop_os/config.hpp"
 
@@ -49,10 +50,18 @@ struct MotionState {
   SteadyTime last_telemetry_at{};
 };
 
+struct RgbFrame {
+  std::uint32_t session = 0;
+  std::uint32_t sequence = 0;
+  std::vector<std::uint8_t> pixels;
+  SteadyTime received_at{};
+};
+
 struct StateSnapshot {
   CursorState cursor;
   MotionState motion;
   std::deque<TrailPoint> trail;
+  RgbFrame frame;
 };
 
 class SharedState {
@@ -84,6 +93,9 @@ class SharedState {
 
   StateSnapshot Snapshot(SteadyTime now) const;
   MotionState MotionSnapshot() const;
+  void UpdateFrame(std::uint32_t session, std::uint32_t sequence,
+                   std::vector<std::uint8_t> pixels, SteadyTime received_at);
+  void ClearFrame();
 
  private:
   void PruneTrailLocked(SteadyTime now);
@@ -94,6 +106,7 @@ class SharedState {
   CursorState cursor_;
   MotionState motion_;
   std::deque<TrailPoint> trail_;
+  RgbFrame frame_;
 };
 
 }  // namespace tabletop_os

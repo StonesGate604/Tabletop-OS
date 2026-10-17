@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <deque>
 #include <istream>
+#include <iostream>
 #include <memory>
 #include <string>
 #include <utility>
@@ -100,7 +101,7 @@ class ArduinoLink::Impl {
       ++connection_generation_;
 
       boost::system::error_code ignored;
-      reconnect_timer_.cancel(ignored);
+      reconnect_timer_.cancel();
       serial_.cancel(ignored);
       serial_.close(ignored);
 
@@ -144,6 +145,12 @@ class ArduinoLink::Impl {
       }
 
       if (error) {
+        const auto now = std::chrono::steady_clock::now();
+        if (last_open_error_log_ == std::chrono::steady_clock::time_point{} ||
+            now - last_open_error_log_ >= std::chrono::seconds(5)) {
+          std::cerr << "[serial] cannot open " << config_.device << ": " << error.message() << '\n';
+          last_open_error_log_ = now;
+        }
         boost::system::error_code ignored;
         serial_.close(ignored);
         NotifyConnection(false);
@@ -198,7 +205,7 @@ class ArduinoLink::Impl {
                            std::size_t /*bytes_transferred*/) {
                 if (!self->IsCurrentConnection(generation)) return;
                 if (error) {
-                  self->HandleDisconnect(generation);
+                  self->HandleDisconnect(generation, error.message());
                   return;
                 }
 
@@ -218,6 +225,12 @@ class ArduinoLink::Impl {
       if (!started_ || stop_requested_.load(std::memory_order_acquire) ||
           !connected_.load(std::memory_order_acquire)) {
         return;
+      }
+
+      if (urgent) {
+        // Cancel unsent ordinary work; a STOP must not be followed by a queued MOVE.
+        pending_writes_.erase(std::remove_if(pending_writes_.begin(), pending_writes_.end(),
+            [](const PendingWrite& write) { return !write.urgent; }), pending_writes_.end());
       }
 
       if (pending_writes_.size() >= kMaximumPendingWrites) {
@@ -256,7 +269,7 @@ class ArduinoLink::Impl {
                 if (!self->IsCurrentConnection(generation)) return;
                 self->write_in_progress_ = false;
                 if (error) {
-                  self->HandleDisconnect(generation);
+                  self->HandleDisconnect(generation, error.message());
                   return;
                 }
                 self->BeginWrite(generation);
@@ -269,8 +282,9 @@ class ArduinoLink::Impl {
              generation == connection_generation_;
     }
 
-    void HandleDisconnect(std::uint64_t generation) {
+    void HandleDisconnect(std::uint64_t generation, const std::string& reason) {
       if (generation != connection_generation_) return;
+      std::cerr << "[serial] disconnected: " << reason << '\n';
 
       ++connection_generation_;
       boost::system::error_code ignored;
@@ -319,6 +333,7 @@ class ArduinoLink::Impl {
     bool reconnect_scheduled_ = false;
     bool write_in_progress_ = false;
     std::uint64_t connection_generation_ = 0;
+    std::chrono::steady_clock::time_point last_open_error_log_{};
   };
 
   Impl(boost::asio::io_context& io,

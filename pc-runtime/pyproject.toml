@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tabletop-os-runtime"
+version = "0.1.0"
+description = "Tabletop OS single-piece interaction runtime"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+vision = ["mediapipe==0.10.35", "opencv-contrib-python==4.14.0.94", "numpy==2.4.6"]
+
+[project.scripts]
+tabletop-os = "tabletop_os.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

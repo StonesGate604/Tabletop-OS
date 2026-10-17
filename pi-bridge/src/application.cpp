@@ -42,14 +42,6 @@ std::int64_t AgeMilliseconds(SteadyTime timestamp, SteadyTime now) {
   return std::chrono::duration_cast<std::chrono::milliseconds>(now - timestamp).count();
 }
 
-std::uint64_t InitialCommandId() {
-  const auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(
-      std::chrono::system_clock::now().time_since_epoch()).count();
-  constexpr std::uint64_t kMaxArduinoId = 0xFFFFFFFFULL;
-  const auto wrapped = static_cast<std::uint64_t>(milliseconds) & kMaxArduinoId;
-  return std::max<std::uint64_t>(1, wrapped);
-}
-
 bool IsHardwareFaultCode(const std::string& code) {
   return code == "ESTOP" || code == "LIMIT_X" || code == "LIMIT_Y" ||
          code == "HOME_X_NOT_FOUND" || code == "HOME_Y_NOT_FOUND" ||
@@ -73,6 +65,7 @@ Application::Application(boost::asio::io_context& io,
           io,
           config.network,
           [this](const Json& message) { HandleCursorMessage(message); }),
+      frame_receiver_(io, config, state),
       arduino_(
           io,
           config.serial,
@@ -80,8 +73,7 @@ Application::Application(boost::asio::io_context& io,
           [this](bool connected) { HandleSerialConnection(connected); }),
       maintenance_timer_(io),
       handshake_timer_(io),
-      shutdown_timer_(io),
-      next_command_id_(InitialCommandId()) {}
+      shutdown_timer_(io) {}
 
 Application::~Application() { Stop(); }
 
@@ -91,6 +83,7 @@ void Application::Start() {
   running_ = true;
   control_server_.Start();
   cursor_receiver_.Start();
+  frame_receiver_.Start();
   arduino_.Start();
   ScheduleMaintenance();
   std::cout << "Tabletop OS bridge listening: TCP " << config_.network.control_port
@@ -104,9 +97,8 @@ void Application::Stop() {
   if (!running_ || stopping_) return;
   stopping_ = true;
   running_ = false;
-  boost::system::error_code ignored;
-  maintenance_timer_.cancel(ignored);
-  handshake_timer_.cancel(ignored);
+  maintenance_timer_.cancel();
+  handshake_timer_.cancel();
   state_.HideCursor();
 
   const bool wait_for_serial_stop = arduino_.IsConnected();
@@ -116,6 +108,7 @@ void Application::Stop() {
     SendSafetyStop();
   }
   cursor_receiver_.Stop();
+  frame_receiver_.Stop();
   control_server_.Stop();
 
   if (!wait_for_serial_stop) {
@@ -159,6 +152,53 @@ void Application::HandleControlMessage(const Json& message) {
     SendStatus(request_id);
     return;
   }
+  if (type == "display.open") {
+    if (!MotionLeaseValid()) {
+      SendError(request_id, "CONTROL_LEASE_EXPIRED");
+      return;
+    }
+    const auto session = message.find("session");
+    if (session == message.end() || !session->is_number_unsigned() ||
+        session->get<std::uint64_t>() == 0 || session->get<std::uint64_t>() > 0xFFFFFFFFULL) {
+      SendError(request_id, "BAD_MESSAGE", "session must be a nonzero uint32");
+      return;
+    }
+    frame_receiver_.SetSession(session->get<std::uint32_t>());
+    control_server_.Send({{"v", 1}, {"type", "display.opened"},
+                          {"reply_to", request_id}, {"session", *session}});
+    return;
+  }
+  if (type == "actuator.servo" || type == "actuator.servo_off") {
+    const auto motion = state_.MotionSnapshot();
+    if (type == "actuator.servo_off") {
+      servo_angle_ = -1;
+      pending_servo_request_id_.clear();
+      if (!arduino_.IsConnected()) { SendError(request_id, "ARDUINO_DISCONNECTED"); return; }
+      arduino_.SendLine("SERVO_OFF");
+      control_server_.Send({{"v", 1}, {"type", "ack"}, {"reply_to", request_id}, {"status", "SERVO_OFF_SENT"}});
+      return;
+    }
+    if (!config_.motion.allow_network_commands) { SendError(request_id, "MOTION_DISABLED"); return; }
+    if (!MotionLeaseValid()) { SendError(request_id, "CONTROL_LEASE_EXPIRED"); return; }
+    if (MotionCommandInFlight()) { SendError(request_id, "COMMAND_PENDING"); return; }
+    if (!command_id_synchronized_) { SendError(request_id, "COMMAND_ID_NOT_SYNCHRONIZED"); return; }
+    if (!motion.arduino_connected || !motion.arduino_ready || !motion.firmware_compatible ||
+        !motion.config_confirmed || !motion.watchdog_enabled ||
+        !TelemetryFresh(motion) || (motion.mode != "IDLE" && motion.mode != "UNREFERENCED") || motion.fault != "NONE") {
+      SendError(request_id, "ARDUINO_NOT_READY"); return;
+    }
+    const auto angle = message.find("angle");
+    if (angle == message.end() || !angle->is_number_integer() ||
+        angle->get<int>() < 0 || angle->get<int>() > 180) {
+      SendError(request_id, "RANGE"); return;
+    }
+    if (!RememberRequest(request_id)) return;
+    servo_angle_ = angle->get<int>();
+    pending_servo_request_id_ = request_id;
+    servo_started_at_ = last_servo_keepalive_ = std::chrono::steady_clock::now();
+    arduino_.SendLine("SERVO " + std::to_string(servo_angle_));
+    return;
+  }
   if (type == "motion.stop") {
     if (!arduino_.IsConnected()) {
       SendError(request_id, "ARDUINO_DISCONNECTED");
@@ -181,6 +221,10 @@ void Application::HandleControlMessage(const Json& message) {
     }
     if (MotionCommandInFlight()) {
       SendError(request_id, "COMMAND_PENDING");
+      return;
+    }
+    if (!command_id_synchronized_) {
+      SendError(request_id, "COMMAND_ID_NOT_SYNCHRONIZED");
       return;
     }
     const auto motion = state_.MotionSnapshot();
@@ -212,6 +256,8 @@ void Application::HandleControlMessage(const Json& message) {
       SendError(request_id, "BUSY");
       return;
     }
+    if (!RememberRequest(request_id)) return;
+    command_started_at_ = std::chrono::steady_clock::now();
     home_in_flight_ = true;
     pending_home_request_id_ = request_id;
     arduino_.SendLine("HOME");
@@ -263,6 +309,10 @@ void Application::HandleControlMessage(const Json& message) {
       SendError(request_id, "BUSY");
       return;
     }
+    if (!command_id_synchronized_) {
+      SendError(request_id, "COMMAND_ID_NOT_SYNCHRONIZED");
+      return;
+    }
 
     double x = 0.0;
     double y = 0.0;
@@ -281,6 +331,8 @@ void Application::HandleControlMessage(const Json& message) {
       return;
     }
 
+    if (!RememberRequest(request_id)) return;
+    command_started_at_ = std::chrono::steady_clock::now();
     constexpr std::uint64_t kMaxArduinoId = 0xFFFFFFFFULL;
     const std::uint64_t command_id = next_command_id_;
     next_command_id_ =
@@ -309,6 +361,7 @@ void Application::HandleControlConnection(bool connected) {
   }
 
   heartbeat_received_ = false;
+  frame_receiver_.SetSession(0);
   state_.HideCursor();
   if (!stopping_ && arduino_.IsConnected()) {
     // STOP is idempotent in the lower controller. Do not depend on possibly
@@ -368,9 +421,11 @@ void Application::HandleSerialLine(const std::string& line) {
                                   (words[1] == "TABLETOP_OS_LOWER" ||
                                    words[1] == "TESSERA_LOWER");
       const bool compatible = known_identity && words[2] == "1";
-      boost::system::error_code ignored;
-      handshake_timer_.cancel(ignored);
+      handshake_timer_.cancel();
       state_.BeginArduinoSession();
+      command_id_synchronized_ = false;
+      servo_angle_ = -1;
+      pending_servo_request_id_.clear();
       ClearPendingMotion();
       stop_in_flight_ = false;
       stop_sent_for_stale_telemetry_ = false;
@@ -386,9 +441,19 @@ void Application::HandleSerialLine(const std::string& line) {
     } else if (words[0] == "PONG") {
       state_.SetArduinoReady(words.size() >= 2 && words[1] == "1");
     } else if (words[0] == "STATE" && words.size() == 8) {
+      const auto actual_x = std::stod(words[4]);
+      const auto actual_y = std::stod(words[5]);
+      const auto target_x = std::stod(words[6]);
+      const auto target_y = std::stod(words[7]);
+      static const std::vector<std::string> modes = {
+          "UNREFERENCED", "HOMING", "IDLE", "TASK_MOVE", "TRACKING", "STOPPING", "ERROR"};
+      if (!std::isfinite(actual_x) || !std::isfinite(actual_y) ||
+          !std::isfinite(target_x) || !std::isfinite(target_y) ||
+          std::find(modes.begin(), modes.end(), words[2]) == modes.end()) {
+        throw std::runtime_error("Invalid STATE values or mode");
+      }
       state_.UpdateMotion(std::stoull(words[1]), words[2], std::stoull(words[3]),
-                          std::stod(words[4]), std::stod(words[5]),
-                          std::stod(words[6]), std::stod(words[7]),
+                          actual_x, actual_y, target_x, target_y,
                           std::chrono::steady_clock::now());
       control_server_.Send(BuildStatusMessage(), true);
     } else if (words[0] == "IO") {
@@ -432,9 +497,9 @@ void Application::HandleSerialLine(const std::string& line) {
         pending_home_request_id_.clear();
       } else {
         const auto command_id = std::stoull(words[1]);
-        control_server_.Send({{"v", 1}, {"type", "motion.completed"},
-                              {"reply_to", pending_request_id_},
-                              {"command_id", command_id}});
+        Json event = {{"v", 1}, {"type", "motion.completed"}, {"command_id", command_id}};
+        if (command_id == pending_command_id_ && !pending_request_id_.empty()) event["reply_to"] = pending_request_id_;
+        control_server_.Send(std::move(event));
         if (command_id == pending_command_id_) {
           pending_command_id_ = 0;
           pending_request_id_.clear();
@@ -456,7 +521,11 @@ void Application::HandleSerialLine(const std::string& line) {
       ClearPendingMotion();
       if (stopping_) FinishStop();
     } else if (words[0] == "ERROR" && words.size() >= 2) {
-      if (IsHardwareFaultCode(words[1])) state_.SetFault(words[1]);
+      if (IsHardwareFaultCode(words[1])) {
+        state_.SetFault(words[1]);
+        state_.SetReferenced(false);
+        servo_angle_ = -1;
+      }
       std::uint64_t related_id = 0;
       if (words.size() >= 3) related_id = std::stoull(words[2]);
       Json error = {{"v", 1}, {"type", "arduino.error"}, {"code", words[1]},
@@ -472,12 +541,30 @@ void Application::HandleSerialLine(const std::string& line) {
         pending_home_request_id_.clear();
       }
       control_server_.Send(std::move(error));
+      if (!pending_servo_request_id_.empty()) {
+        SendError(pending_servo_request_id_, words[1]);
+        pending_servo_request_id_.clear();
+        servo_angle_ = -1;
+      }
+    } else if (words[0] == "OK" && words.size() == 3 && words[1] == "SERVO") {
+      if (!pending_servo_request_id_.empty() && std::stoi(words[2]) == servo_angle_) {
+        control_server_.Send({{"v", 1}, {"type", "actuator.completed"},
+                              {"reply_to", pending_servo_request_id_}, {"angle", servo_angle_}});
+        pending_servo_request_id_.clear();
+      }
     } else if (words[0] == "CONFIG") {
       for (std::size_t i = 1; i < words.size(); ++i) {
         const auto separator = words[i].find('=');
         if (separator == std::string::npos) continue;
         if (words[i].substr(0, separator) == "CONFIRMED") {
           state_.SetConfigConfirmed(words[i].substr(separator + 1) == "1");
+        }
+        if (words[i].substr(0, separator) == "LAST_TASK_ID") {
+          const auto last_id = std::stoull(words[i].substr(separator + 1));
+          if (last_id <= 0xFFFFFFFFULL) {
+            next_command_id_ = last_id >= 0xFFFFFFFFULL ? 1 : last_id + 1;
+            command_id_synchronized_ = true;
+          }
         }
       }
       control_server_.Send({{"v", 1}, {"type", "arduino.config"}, {"raw", line}});
@@ -495,12 +582,15 @@ void Application::HandleSerialConnection(bool connected) {
   stop_sent_for_stale_telemetry_ = false;
   if (connected) {
     last_arduino_keepalive_ = std::chrono::steady_clock::now();
+    handshake_attempts_ = 0;
     SendSafetyStop();
     ScheduleArduinoHandshake(config_.serial.handshake_delay_ms);
   } else {
-    boost::system::error_code ignored;
-    handshake_timer_.cancel(ignored);
+    handshake_timer_.cancel();
     stop_in_flight_ = false;
+    command_id_synchronized_ = false;
+    servo_angle_ = -1;
+    pending_servo_request_id_.clear();
     ClearPendingMotion();
     control_server_.Send({{"v", 1}, {"type", "arduino.connection"},
                           {"connected", false}});
@@ -525,6 +615,7 @@ void Application::ScheduleMaintenance() {
       lease_expired_ = false;
     } else if (lease_deadline_elapsed && !lease_expired_) {
       lease_expired_ = true;
+      frame_receiver_.SetSession(0);
       state_.HideCursor();
       if (!stop_sent_for_expired_lease_ && arduino_.IsConnected()) {
         stop_sent_for_expired_lease_ = SendSafetyStop() || stop_in_flight_;
@@ -540,6 +631,33 @@ void Application::ScheduleMaintenance() {
     }
 
     const auto motion = state_.MotionSnapshot();
+    if ((home_in_flight_ || pending_command_id_ != 0) && command_started_at_ != SteadyTime{} &&
+        now - command_started_at_ > std::chrono::milliseconds(config_.motion.command_timeout_ms)) {
+      SendError(home_in_flight_ ? pending_home_request_id_ : pending_request_id_, "COMMAND_TIMEOUT");
+      ClearPendingMotion();
+      SendSafetyStop();
+    }
+    if (!pending_servo_request_id_.empty() && now - servo_started_at_ >
+        std::chrono::milliseconds(config_.motion.servo_timeout_ms)) {
+      SendError(pending_servo_request_id_, "SERVO_TIMEOUT");
+      pending_servo_request_id_.clear();
+      SendSafetyStop();
+    }
+    if (stop_in_flight_ && now - stop_started_at_ >
+        std::chrono::milliseconds(config_.motion.stop_timeout_ms)) {
+      control_server_.Send({{"v", 1}, {"type", "motion.interlock"}, {"reason", "STOP_TIMEOUT"}});
+      // Leave the lease stopped and close serial. Independent MCU watchdog remains the fallback.
+      std::cerr << "Arduino STOP timeout; serial disabled until service restart" << std::endl;
+      arduino_.Stop();
+      ScheduleMaintenance();
+      return;
+    }
+    if (servo_angle_ >= 0 && pending_servo_request_id_.empty() && MotionLeaseValid() &&
+        TelemetryFresh(motion) && motion.fault == "NONE" && !stop_in_flight_ &&
+        now - last_servo_keepalive_ >= std::chrono::seconds(2)) {
+      arduino_.SendLine("SERVO " + std::to_string(servo_angle_));
+      last_servo_keepalive_ = now;
+    }
     const bool motion_may_be_active = motion.mode == "HOMING" ||
                                       motion.mode == "TASK_MOVE" ||
                                       motion.mode == "TRACKING" ||
@@ -568,7 +686,14 @@ void Application::ScheduleArduinoHandshake(int delay_ms) {
 }
 
 void Application::SendArduinoHandshake() {
+  if (handshake_attempts_ >= 3) {
+    std::cerr << "Arduino identity handshake timed out; motion remains locked" << std::endl;
+    SendError({}, "ARDUINO_HANDSHAKE_TIMEOUT");
+    return;
+  }
+  ++handshake_attempts_;
   arduino_.SendLine("IDENTIFY");
+  ScheduleArduinoHandshake(1000);
 }
 
 void Application::ConfigureArduinoSession() {
@@ -582,13 +707,17 @@ void Application::ConfigureArduinoSession() {
 bool Application::SendSafetyStop() {
   if (!arduino_.IsConnected() || stop_in_flight_) return false;
   stop_in_flight_ = true;
+  stop_started_at_ = std::chrono::steady_clock::now();
+  servo_angle_ = -1;
+  if (!pending_servo_request_id_.empty()) SendError(pending_servo_request_id_, "SERVO_CANCELLED");
+  pending_servo_request_id_.clear();
+  arduino_.SendLine("SERVO_OFF", true);
   arduino_.SendLine("STOP", true);
   return true;
 }
 
 void Application::FinishStop() {
-  boost::system::error_code ignored;
-  shutdown_timer_.cancel(ignored);
+  shutdown_timer_.cancel();
   arduino_.Stop();
 }
 
@@ -624,6 +753,10 @@ Json Application::BuildStatusMessage() const {
       {"control_lease_valid", MotionLeaseValid()},
       {"motion_commands_enabled", config_.motion.allow_network_commands},
       {"motion_command_in_flight", MotionCommandInFlight()},
+      {"command_id_synchronized", command_id_synchronized_},
+      {"display", {{"mode", config_.display.mode}, {"frame_seq", snapshot.frame.sequence},
+                   {"session", snapshot.frame.session},
+                   {"frame_age_ms", AgeMilliseconds(snapshot.frame.received_at, now)}}},
       {"cursor", {
           {"visible", snapshot.cursor.visible},
           {"seq", snapshot.cursor.sequence},
@@ -667,7 +800,21 @@ bool Application::TelemetryFresh(const MotionState& motion) const {
 }
 
 bool Application::MotionCommandInFlight() const {
-  return stop_in_flight_ || home_in_flight_ || pending_command_id_ != 0;
+  return stop_in_flight_ || home_in_flight_ || pending_command_id_ != 0 || !pending_servo_request_id_.empty();
+}
+
+bool Application::RememberRequest(const std::string& request_id) {
+  if (request_id.empty() || request_id.size() > 128) {
+    SendError(request_id, "REQUEST_ID_REQUIRED");
+    return false;
+  }
+  if (std::find(recent_requests_.begin(), recent_requests_.end(), request_id) != recent_requests_.end()) {
+    SendError(request_id, "DUPLICATE_REQUEST");
+    return false;
+  }
+  recent_requests_.push_back(request_id);
+  while (recent_requests_.size() > 64) recent_requests_.pop_front();
+  return true;
 }
 
 bool Application::ValidateProtocolVersion(const Json& message,

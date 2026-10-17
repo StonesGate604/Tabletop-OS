@@ -3,6 +3,9 @@
 #include <algorithm>
 #include <fstream>
 #include <stdexcept>
+#include <limits>
+#include <type_traits>
+#include <cmath>
 
 #include <nlohmann/json.hpp>
 
@@ -15,7 +18,25 @@ template <typename T>
 void Read(const Json& object, const char* key, T& destination) {
   const auto it = object.find(key);
   if (it != object.end()) {
+    if constexpr (std::is_integral_v<T> && !std::is_same_v<T, bool>) {
+      if (!it->is_number_integer()) throw std::runtime_error(std::string("Expected integer: ") + key);
+      if (it->is_number_unsigned()) {
+        if (it->get<std::uint64_t>() > static_cast<std::uint64_t>(std::numeric_limits<T>::max()))
+          throw std::runtime_error(std::string("Integer out of range: ") + key);
+      } else {
+        const auto value = it->get<std::int64_t>();
+        if constexpr (std::is_unsigned_v<T>) {
+          if (value < 0 || static_cast<std::uint64_t>(value) > std::numeric_limits<T>::max())
+            throw std::runtime_error(std::string("Integer out of range: ") + key);
+        } else if (value < std::numeric_limits<T>::min() || value > std::numeric_limits<T>::max()) {
+          throw std::runtime_error(std::string("Integer out of range: ") + key);
+        }
+      }
+    }
     destination = it->get<T>();
+    if constexpr (std::is_floating_point_v<T>) {
+      if (!std::isfinite(destination)) throw std::runtime_error(std::string("Non-finite configuration: ") + key);
+    }
   }
 }
 
@@ -42,6 +63,19 @@ const Json& Section(const Json& root, const char* name) {
 }
 
 void Validate(const AppConfig& config) {
+  if (config.network.frame_port == 0 ||
+      config.network.frame_port == config.network.control_port ||
+      config.network.frame_port == config.network.cursor_port) {
+    throw std::runtime_error("Invalid frame port");
+  }
+  if ((config.display.mode != "frames" && config.display.mode != "diagnostic") ||
+      (config.display.mode == "frames" && (config.display.expected_width != 64 || config.display.expected_height != 64)) ||
+      config.display.frame_timeout_ms < 50 || config.display.assembly_timeout_ms < 10 ||
+      config.display.assembly_timeout_ms > config.display.frame_timeout_ms ||
+      config.motion.command_timeout_ms < 1000 || config.motion.stop_timeout_ms < 100 ||
+      config.motion.servo_timeout_ms < 100) {
+    throw std::runtime_error("Invalid display mode or timeout configuration");
+  }
   if (config.network.control_port == 0 || config.network.cursor_port == 0) {
     throw std::runtime_error("Network ports must be non-zero");
   }
@@ -114,6 +148,7 @@ AppConfig LoadConfig(const std::string& path) {
   Read(network, "bind_address", config.network.bind_address);
   Read(network, "control_port", config.network.control_port);
   Read(network, "cursor_port", config.network.cursor_port);
+  Read(network, "frame_port", config.network.frame_port);
   Read(network, "heartbeat_timeout_ms", config.network.heartbeat_timeout_ms);
   Read(network, "max_control_line_bytes", config.network.max_control_line_bytes);
 
@@ -150,6 +185,9 @@ AppConfig LoadConfig(const std::string& path) {
   config.trail.blue = ReadColor(trail, "blue", config.trail.blue);
 
   const auto& display = Section(root, "display");
+  Read(display, "mode", config.display.mode);
+  Read(display, "frame_timeout_ms", config.display.frame_timeout_ms);
+  Read(display, "assembly_timeout_ms", config.display.assembly_timeout_ms);
   Read(display, "enabled", config.display.enabled);
   Read(display, "rows", config.display.rows);
   Read(display, "cols", config.display.cols);
@@ -177,6 +215,9 @@ AppConfig LoadConfig(const std::string& path) {
   Read(motion, "minimum_speed_mm_s", config.motion.minimum_speed_mm_s);
   Read(motion, "maximum_speed_mm_s", config.motion.maximum_speed_mm_s);
   Read(motion, "telemetry_timeout_ms", config.motion.telemetry_timeout_ms);
+  Read(motion, "command_timeout_ms", config.motion.command_timeout_ms);
+  Read(motion, "stop_timeout_ms", config.motion.stop_timeout_ms);
+  Read(motion, "servo_timeout_ms", config.motion.servo_timeout_ms);
 
   Validate(config);
   return config;

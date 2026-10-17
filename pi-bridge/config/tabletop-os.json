@@ -3,6 +3,7 @@
     "bind_address": "0.0.0.0",
     "control_port": 7420,
     "cursor_port": 7421,
+    "frame_port": 7422,
     "heartbeat_timeout_ms": 1500,
     "max_control_line_bytes": 4096
   },
@@ -39,6 +40,9 @@
     "blue": 220
   },
   "display": {
+    "mode": "frames",
+    "frame_timeout_ms": 250,
+    "assembly_timeout_ms": 100,
     "enabled": true,
     "rows": 32,
     "cols": 64,
@@ -65,6 +69,9 @@
     "max_y_mm": 513.0,
     "minimum_speed_mm_s": 0.5,
     "maximum_speed_mm_s": 25.0,
-    "telemetry_timeout_ms": 500
+    "telemetry_timeout_ms": 500,
+    "command_timeout_ms": 180000,
+    "stop_timeout_ms": 2500,
+    "servo_timeout_ms": 1500
   }
 }

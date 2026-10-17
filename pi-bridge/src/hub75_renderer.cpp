@@ -362,8 +362,18 @@ class Hub75Renderer::Impl {
 
   void Render(const StateSnapshot& snapshot, SteadyTime now) {
     std::fill(frame_.begin(), frame_.end(), Color(0, 0, 0));
-    DrawTrail(snapshot.trail, now);
-    DrawCursor(snapshot.cursor, now);
+    if (config_.display.mode == "diagnostic") {
+      DrawTrail(snapshot.trail, now);
+      DrawCursor(snapshot.cursor, now);
+    } else if (snapshot.frame.pixels.size() == frame_.size() * 3 &&
+               snapshot.frame.received_at != SteadyTime{} &&
+               now - snapshot.frame.received_at <=
+                   std::chrono::milliseconds(config_.display.frame_timeout_ms)) {
+      for (std::size_t i = 0; i < frame_.size(); ++i) {
+        // Keep the known red-channel hardware mask in the final output layer.
+        frame_[i] = Color(0, snapshot.frame.pixels[i * 3 + 1], snapshot.frame.pixels[i * 3 + 2]);
+      }
+    }
     back_buffer_->SetPixels(0, 0, width_, height_, frame_.data());
     back_buffer_ = matrix_->SwapOnVSync(back_buffer_);
   }

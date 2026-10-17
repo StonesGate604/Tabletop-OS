@@ -27,6 +27,8 @@ add_executable(tabletop-os-bridge
   src/config.cpp
   src/control_server.cpp
   src/cursor_receiver.cpp
+  src/frame_protocol.cpp
+  src/frame_receiver.cpp
   src/main.cpp
   src/shared_state.cpp
 )
@@ -77,6 +79,21 @@ if(MSVC)
   target_compile_definitions(tabletop-os-bridge PRIVATE _WIN32_WINNT=0x0A00)
 elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
   target_compile_options(tabletop-os-bridge PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+
+if(WIN32)
+  target_compile_definitions(tabletop-os-bridge PRIVATE _WIN32_WINNT=0x0A00)
+  target_link_libraries(tabletop-os-bridge PRIVATE ws2_32 mswsock)
+endif()
+
+include(CTest)
+if(BUILD_TESTING)
+  add_executable(tabletop-os-frame-tests tests/frame_protocol_test.cpp src/frame_protocol.cpp)
+  target_include_directories(tabletop-os-frame-tests PRIVATE include ${Boost_INCLUDE_DIRS})
+  add_test(NAME frame-protocol COMMAND tabletop-os-frame-tests)
+  add_executable(tabletop-os-firmware-tests ../firmware/tests/lower_controller_test.cpp)
+  target_include_directories(tabletop-os-firmware-tests PRIVATE ../firmware/tests/fakes)
+  add_test(NAME firmware-fake-hal COMMAND tabletop-os-firmware-tests)
 endif()
 
 install(TARGETS tabletop-os-bridge RUNTIME DESTINATION bin)

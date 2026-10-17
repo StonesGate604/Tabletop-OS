@@ -743,7 +743,9 @@ void startHoming() {
   }
 
   clearPlanner();
-  servoOff();
+  // Preserve an explicitly commanded lift position during homing. The host
+  // releases the permanent magnet first and refreshes SERVO while HOME runs.
+  // Power-on still has no servo pulses; STOP/fault/watchdog behavior is unchanged.
   enableMotors();
   positionReferenced = false;
   faultCode = FAULT_NONE;
@@ -759,9 +761,14 @@ bool parseUnsignedLongStrict(const char *text, unsigned long &value) {
   for (const char *p = text; *p; ++p) {
     if (*p < '0' || *p > '9') return false;
   }
-  char *end;
-  value = strtoul(text, &end, 10);
-  return *end == '\0';
+  uint32_t parsed = 0;
+  for (const char *p = text; *p; ++p) {
+    uint8_t digit = *p - '0';
+    if (parsed > (0xFFFFFFFFUL - digit) / 10UL) return false;
+    parsed = parsed * 10UL + digit;
+  }
+  value = parsed;
+  return true;
 }
 
 bool parseFloatStrict(const char *text, float &value) {
@@ -825,7 +832,9 @@ void printConfiguration() {
   Serial.print(F(" X_AXIS_SIGN="));
   Serial.print(X_AXIS_SIGN);
   Serial.print(F(" Y_AXIS_SIGN="));
-  Serial.println(Y_AXIS_SIGN);
+  Serial.print(Y_AXIS_SIGN);
+  Serial.print(F(" LAST_TASK_ID="));
+  Serial.println(lastTaskId);
 }
 
 void setServoAngle(long angle) {

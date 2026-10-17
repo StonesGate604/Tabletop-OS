@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <deque>
 
 #include <boost/asio.hpp>
 #include <nlohmann/json.hpp>
@@ -11,6 +12,7 @@
 #include "tabletop_os/config.hpp"
 #include "tabletop_os/control_server.hpp"
 #include "tabletop_os/cursor_receiver.hpp"
+#include "tabletop_os/frame_receiver.hpp"
 #include "tabletop_os/shared_state.hpp"
 
 namespace tabletop_os {
@@ -49,12 +51,14 @@ class Application {
   bool MotionCommandInFlight() const;
   bool ValidateProtocolVersion(const nlohmann::json& message,
                                std::string& request_id);
+  bool RememberRequest(const std::string& request_id);
 
   boost::asio::io_context& io_;
   const AppConfig config_;
   SharedState& state_;
   ControlServer control_server_;
   CursorReceiver cursor_receiver_;
+  FrameReceiver frame_receiver_;
   ArduinoLink arduino_;
   boost::asio::steady_timer maintenance_timer_;
   boost::asio::steady_timer handshake_timer_;
@@ -75,6 +79,15 @@ class Application {
   std::uint64_t pending_command_id_ = 0;
   std::string pending_request_id_;
   std::string pending_home_request_id_;
+  std::string pending_servo_request_id_;
+  int servo_angle_ = -1;
+  bool command_id_synchronized_ = false;
+  int handshake_attempts_ = 0;
+  SteadyTime command_started_at_{};
+  SteadyTime stop_started_at_{};
+  SteadyTime servo_started_at_{};
+  SteadyTime last_servo_keepalive_{};
+  std::deque<std::string> recent_requests_;
 };
 
 }  // namespace tabletop_os

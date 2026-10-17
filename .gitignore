@@ -1,7 +1,12 @@
 __pycache__/
 *.py[cod]
-**/.venv/
+.venv/
+.venv-apriltag/
 **/outputs/
+*.egg-info/
+/pc-runtime/models/*.task
+/pc-runtime/logs/
+/pc-runtime/config/local*.json
 
 # Local builds and scratch files.
 **/build*/

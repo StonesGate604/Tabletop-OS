@@ -1,5 +1,7 @@
 # Tabletop OS Development Roadmap
 
+> Software update (2026-10-16): The single-piece PC runtime, two-pinch servo-lift sequence, simulation, offline vision integration and PC-to-Pi final-frame path are implemented. Physical commissioning remains pending. See [the current technical guide](TABLETOP_OS_TECHNICAL_GUIDE_ZH.md) for actual code and verification; the phases below remain a roadmap, not a current acceptance record.
+
 > Architecture note (2026-10-12): Pi-side cursor and trail composition below describes the retained v0.1 diagnostic baseline. The production direction is for the PC runtime to compose the final display frame and for the Pi to act as the HUB75 hardware output and safety bridge.
 
 > Direction: evolve the earlier translucent board game assistance system into a physical-digital tabletop where players, game logic, and an LLM can all become valid inputs, and the board can respond through light plus physical motion.

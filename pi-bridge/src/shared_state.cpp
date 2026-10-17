@@ -163,7 +163,7 @@ void SharedState::UpdateMotion(std::uint64_t telemetry_sequence,
 
 StateSnapshot SharedState::Snapshot(SteadyTime now) const {
   std::lock_guard<std::mutex> lock(mutex_);
-  StateSnapshot result{cursor_, motion_, trail_};
+  StateSnapshot result{cursor_, motion_, trail_, frame_};
   if (result.cursor.visible && result.cursor.has_sequence &&
       now - result.cursor.received_at >
           std::chrono::milliseconds(cursor_config_.timeout_ms)) {
@@ -179,6 +179,17 @@ StateSnapshot SharedState::Snapshot(SteadyTime now) const {
 MotionState SharedState::MotionSnapshot() const {
   std::lock_guard<std::mutex> lock(mutex_);
   return motion_;
+}
+
+void SharedState::UpdateFrame(std::uint32_t session, std::uint32_t sequence,
+                              std::vector<std::uint8_t> pixels, SteadyTime received_at) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  frame_ = {session, sequence, std::move(pixels), received_at};
+}
+
+void SharedState::ClearFrame() {
+  std::lock_guard<std::mutex> lock(mutex_);
+  frame_ = {};
 }
 
 void SharedState::PruneTrailLocked(SteadyTime now) {
