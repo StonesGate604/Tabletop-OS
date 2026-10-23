@@ -201,6 +201,7 @@ AppConfig LoadConfig(const std::string& path) {
   Read(display, "expected_width", config.display.expected_width);
   Read(display, "expected_height", config.display.expected_height);
   Read(display, "hardware_mapping", config.display.hardware_mapping);
+  Read(display, "panel_type", config.display.panel_type);
   Read(display, "pixel_mapper", config.display.pixel_mapper);
   Read(display, "drop_privileges", config.display.drop_privileges);
   Read(display, "drop_user", config.display.drop_user);

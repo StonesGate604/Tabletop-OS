@@ -29,6 +29,15 @@ void FinishPlan() {
   for (int i = 0; plan.active && i < 100000; ++i) { fakeMicros += 100; serviceMotionPlan(); }
   Require(!plan.active, "motion planner did not finish");
 }
+void AdvanceClockDuringLoop() {
+  // Cross a millisecond boundary after loop() samples its debounce time,
+  // before serial commands record their own timestamps.
+  fakeReadHook = [](int pin) -> int {
+    fakeMicros += 1000;
+    fakeReadHook = nullptr;
+    return fakePins[pin];
+  };
+}
 
 int main() {
   try {
@@ -58,6 +67,25 @@ int main() {
     ResetReferenced(); Command("WATCHDOG ON"); Command("MOVE_TO 144 100 20 10");
     fakeMicros += 1600000; serviceHostWatchdog(millis()); FinishPlan();
     Require(Has("ERROR HOST_TIMEOUT 144") && Has("STOPPED HOST_TIMEOUT"), "host watchdog broken");
+
+    ResetReferenced(); Command("WATCHDOG ON"); Command("HOME");
+    Serial.output.clear(); Serial.feed("PING\n");
+    AdvanceClockDuringLoop(); loop();
+    Require(Has("PONG 1") && !Has("HOST_TIMEOUT") && mode == MODE_HOMING,
+            "fresh heartbeat falsely timed out across loop millisecond boundary");
+    fakeMicros += 1600000; loop();
+    Require(Has("ERROR HOST_TIMEOUT 0") && mode == MODE_UNREFERENCED && !motorsEnabled,
+            "real heartbeat loss during HOME did not stop motors");
+
+    ResetReferenced(); Serial.feed("SET_TARGET 502 25 25\n");
+    AdvanceClockDuringLoop(); loop();
+    Require(mode == MODE_TRACKING && !Has("TARGET_TIMEOUT"),
+            "fresh tracking target falsely timed out across loop millisecond boundary");
+
+    ResetReferenced(); Serial.feed("SERVO 90\n");
+    AdvanceClockDuringLoop(); loop();
+    Require(actuatorServo.attached() && !Has("EVENT SERVO_TIMEOUT"),
+            "fresh servo command falsely timed out across loop millisecond boundary");
 
     ResetReferenced(); Command("MOVE_TO 145 100 20 10");
     fakePins[X_LIMIT_PIN] = LOW; serviceMotionPlan();

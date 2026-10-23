@@ -68,6 +68,7 @@ struct DisplayConfig {
   int expected_width = 64;
   int expected_height = 64;
   std::string hardware_mapping = "regular";
+  std::string panel_type;
   std::string pixel_mapper = "Remap:64,64|0,0n|0,32n";
   bool drop_privileges = true;
   std::string drop_user = "tabletop-os";

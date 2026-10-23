@@ -5,6 +5,9 @@ Wants=network-online.target
 
 [Service]
 Type=simple
+# HUB75 drops UID/GID without loading the target user's supplementary groups.
+# Preserve serial access after the library drops privileges.
+SupplementaryGroups=dialout
 ExecStart=/usr/local/bin/tabletop-os-bridge --config /etc/tabletop-os/tabletop-os.json
 Restart=on-failure
 RestartSec=2

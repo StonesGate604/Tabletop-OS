@@ -1214,6 +1214,9 @@ void loop() {
   serviceMotionPlan();
   serviceSerialInput();
   serviceUnexpectedLimits();
+  // Serial commands timestamp themselves with millis(). Refresh now so elapsed
+  // time cannot underflow if a command crossed the loop's millisecond boundary.
+  nowMs = millis();
   serviceHostWatchdog(nowMs);
   serviceTargetTimeout(nowMs);
   serviceServoTimeout(nowMs);

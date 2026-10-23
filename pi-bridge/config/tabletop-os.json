@@ -56,6 +56,7 @@
     "expected_width": 64,
     "expected_height": 64,
     "hardware_mapping": "regular",
+    "panel_type": "",
     "pixel_mapper": "Remap:64,64|0,0n|0,32n",
     "drop_privileges": true,
     "drop_user": "tabletop-os",

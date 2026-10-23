@@ -74,6 +74,11 @@ class Hub75Renderer::Impl {
             ? "regular"
             : config_.display.hardware_mapping.c_str();
     matrix_options.rows = config_.display.rows;
+    matrix_options.panel_type = config_.display.panel_type.empty()
+        ? nullptr : config_.display.panel_type.c_str();
+    if (!config_.display.panel_type.empty()) {
+      std::cerr << "HUB75 panel type: " << config_.display.panel_type << '\n';
+    }
     matrix_options.cols = config_.display.cols;
     matrix_options.chain_length = config_.display.chain_length;
     matrix_options.parallel = config_.display.parallel;

@@ -326,6 +326,9 @@ void loop() {
   serviceMotionPlan();
   serviceSerialInput();
   serviceUnexpectedLimits();
+  // Serial commands timestamp themselves with millis(). Refresh now so elapsed
+  // time cannot underflow if a command crossed the loop's millisecond boundary.
+  nowMs = millis();
   serviceHostWatchdog(nowMs);
   serviceTargetTimeout(nowMs);
   serviceServoTimeout(nowMs);
@@ -334,6 +337,8 @@ void loop() {
 ```
 
 `startMotionPlan()` 只建立 MotionPlan；`serviceMotionPlan()` 比较 micros 与 nextEventAtUs，未到期立刻返回，到期最多输出一组脉冲。DDA（数字差分插补）的 errorA/errorB 累加器决定本次哪个电机走一步。速度受加速度和剩余距离制动关系 `sqrt(2*a*s)` 限制，无路径前瞻。
+
+串口处理后必须重新读取 `millis()`，再检查主机、目标和舵机超时。否则串口命令记录的时间可能比本轮入口时间晚 1 ms，无符号相减会误判为超时，导致持续收到 PING 的回零仍报 `HOST_TIMEOUT`。2026-10-23 增加了跨毫秒边界的回归测试；真实失联 1500 ms 的停止保护保持不变，修复版仍需重新上传 Uno 并完成实机复测。
 
 当前 A=(X+Y)×100、B=(X−Y)×100，再乘轴方向符号；反算 X=(A+B)/200、Y=(A−B)/200。100 steps/mm 来自 200 整步×16 细分÷(2 mm 齿距×16 齿)。软件常量不会改变 A4988 跳帽。
 
@@ -697,6 +702,8 @@ CPU的frame_是一次合成结果；CreateFrameCanvas创建后缓冲，前缓冲
 
 默认rows32、cols64、chain2、parallel1，经 `Remap:64,64|0,0n|0,32n` 变成64×64逻辑画布；Initialize要求库实际宽高匹配expected，否则清屏返回失败。方向须实物校准。库负责GPIO时序，应用传入brightness30、pwm_bits11、gpio_slowdown4和降权参数。[上游官方说明](https://github.com/hzeller/rpi-rgb-led-matrix)
 
+`display.panel_type` 默认空字符串，对应库默认初始化；非空时传入库的 `Options::panel_type`。用户历史调试命令包含 FM6127，当前实物可优先配置 `"FM6127"` 并重新编译部署后验证。旧 Bridge 未读取此字段，不能只改 deployed JSON 而不更新程序。该选项用于芯片初始化，与 GPIO 引脚映射和 64×64 面板排列是不同设置。
+
 PC/Pi目标都是60Hz，Pi错过节拍会跳过旧帧而非追赶；Tk实际周期还包含处理时间。STATE目标10Hz，空间连线不等于60Hz新位置测量。单帧12288字节×60约720KiB/s，11包/帧、660包/秒；本次未测真实相机端到端延迟、Pi帧率或HUB75扫描刷新率。主机stub不绘制像素，不能证明双缓冲实物效果。
 
 ## H. 计算机视觉
@@ -780,6 +787,8 @@ sudo journalctl -u tabletop-os-bridge -f
 
 脚本检查include/led-matrix.h和lib/librgbmatrix.a，建tabletop-os用户/组并加入dialout，存在gpio组时也加入。安装程序到/usr/local/bin，配置/etc/tabletop-os，service到/etc/systemd/system。已有/etc配置保留；修改仓库JSON不会自动覆盖线上配置。先以系统服务权限初始化HUB75，再由库降权，故降权用户也须有串口权限。旧tessera-bridge若存在须先停用，不能同时占端口/串口/GPIO。
 
+服务显式设置 `SupplementaryGroups=dialout`：HUB75 库的降权实现只更改 UID/GID，没有为目标用户调用 initgroups；服务原先未持有 dialout 时，即使账号列在该组内，开启 HUB75 后仍可能报串口 Permission denied。旧部署需更新服务或增加该设置的 drop-in，daemon-reload 并重启。保留非 root 的运行用户及串口 root:dialout 的访问限制。
+
 手工运行前停service，避免抢占：
 
 ```bash
@@ -860,6 +869,16 @@ MOVE_TO 4 10 20 2
 ```
 
 测四角后恢复mode=frames；新Runtime使用TCP持续心跳和UDP最终帧，不依赖send_cursor。两个脚本都不是运动会话：send_control读一行就关闭，不能先单发heartbeat再用另一个连接维持MOVE；第一行也可能是异步事件，需识别type/reply_to。
+
+需要从 PC 单独验证机构时，可用 [control_pi.py](../pc-runtime/tools/control_pi.py) 的 `status/home/move/stop` 命令，操作方法见 [PC README](../pc-runtime/README.md)。它只依赖标准库，在单次动作期间持续发心跳，等待匹配的完成事件，错误或 Ctrl+C 时请求 STOP 并等待停止回报，不自动重放动作或重启服务。手动测试须先抬起并固定磁铁，工具不控制舵机，也不验证棋子真实位置；Pi 运动锁仍须人工启用。只有一个 TCP 控制者，因此运动时应在原窗口 Ctrl+C，另一个连接不能抢占执行 stop。
+
+该工具另支持 `panel-test` 和 `--display-first home/move`：画面只使用第一块对应的上 32 行，第二块保持黑屏；亮屏测试显示数字 1，运动时显示缩略位置、目标和轨迹。它复用 TOSF 编码和 TCP 显示会话，不改变 Pi 的固定 64×64 帧协议；实际面板映射和显示启用须在 Pi 端配置。帧收到回报只证明网络组帧成功，实体亮屏及坐标对齐仍须实测。
+
+使用 `--display-all panel-test/home/move` 可将画面扩展至完整 64×64：上、下半屏测试分别显示 1 和 2，运动位置与轨迹使用两块面板，状态条移至整屏底部第 60 行。它与 `--display-first` 互斥，仅改变 PC 合成范围，Pi 协议和两块映射不变。
+
+当前装配下，整屏默认再旋转 180°，输出 `(x,y)` 映射为 `(63-x,63-y)`，包括数字与状态条；上段是旋转前的逻辑布局。可用 `--rotation 0` 恢复原方向或显式 `--rotation 180` 固定旋转。只转换最终像素，传给 Pi/Arduino 的运动坐标保持原值。
+
+用户确认以蓝色状态边为下方观察时，机构回零点在左下角，X 增加向右、Y 增加向上。手动工具缩略图先按这一约定映射（完整画布的逻辑 `(0,0)` 对应像素 `(2,56)`），再整体旋转。MOVE 为绝对毫米坐标；起点、目标、差值和速度会在命令发送前显示，实际距离仍须实测。
 
 完成[实机表](HARDWARE_COMMISSIONING_ZH.md)的角度、方向、距离、限位、相机标定后，人工启用Pi deployed配置allow_network_commands并重启，再启动：
 

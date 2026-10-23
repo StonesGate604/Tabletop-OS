@@ -45,6 +45,67 @@ python -m venv pc-runtime/.venv
 
 Linux 使用 .venv/bin/python；Tk 可能需要系统 python3-tk，本次未做 Linux GUI 验证。可编辑源码安装已验证，尚无独立桌面安装器。
 
+## 从电脑手动控制 Pi / Arduino
+
+`tools/control_pi.py` 只使用 Python 标准库，无需相机、视觉依赖或安装 Runtime。先将磁铁抬起并固定，验证限位和方向；该工具不会自动控制升降舵机，不属于棋子观测验证流程。Pi 仍须人工设置 `motion.allow_network_commands=true` 并重启服务；工具不会修改 Pi 配置。
+
+在电脑项目根目录的 PowerShell 中执行（IP 换成实际树莓派地址）：
+
+```powershell
+python ./pc-runtime/tools/control_pi.py --host 192.168.1.2 status
+python ./pc-runtime/tools/control_pi.py --host 192.168.1.2 home
+python ./pc-runtime/tools/control_pi.py --host 192.168.1.2 move --x 10 --y 10 --speed 2
+python ./pc-runtime/tools/control_pi.py --host 192.168.1.2 move --x 20 --y 10 --speed 2
+python ./pc-runtime/tools/control_pi.py --host 192.168.1.2 stop
+```
+
+坐标为绝对毫米坐标，速度为 mm/s。每条等完成再执行下一条；未回零会拒绝移动。HOME/MOVE 在同一 TCP 连接中持续发心跳并等待匹配的完成事件，不自动重连或重发动作；退出时关闭连接会触发 Pi 的 STOP，但不重启服务，正常情况下可保留坐标参考。断电、Arduino 复位或位置参考失效后必须重新回零。
+
+运动中在执行命令的窗口按 Ctrl+C，工具会请求 STOP 并等待 Arduino 的停止确认。Pi 只允许一个控制连接，另一个窗口的 `stop` 无法抢占正在运行的连接，也不要同时运行 Runtime 或树莓派本地回零脚本。`stop` 的发送 ACK 不等于实物停止；工具等待 `motion.stopped`。遇到机械危险仍使用物理急停。Ctrl+C 清理和退出也无法保证断电/进程被强杀时的软件停止确认。
+
+本地回环测试 `python -m unittest discover -s pc-runtime/tests -p test_control_pi.py -v` 覆盖分片回复、持续心跳、未回零拒绝、低速参数、错误/超时后 STOP 和等待停止确认；不驱动硬件。
+
+### 第一块 64×32 灯板与手动运动联动
+
+两块面板仍串联，保留 Pi 的 64×64 逻辑画布及已校准的面板映射；启用 deployed 配置的 `display.enabled=true`、`display.mode=frames`，首次可将亮度设为 15。重启 Pi Bridge 可能复位 Arduino，此后先查询状态并按需重新回零。默认映射下，工具只画第一块对应的上 32 行，下 32 行始终为黑；需要通过实物数字 1 和左右角标核对屏幕顺序、方向。
+
+```powershell
+python ./pc-runtime/tools/control_pi.py --host 192.168.1.2 panel-test --seconds 10
+python ./pc-runtime/tools/control_pi.py --host 192.168.1.2 --display-first home
+python ./pc-runtime/tools/control_pi.py --host 192.168.1.2 --display-first move --x 10 --y 10 --speed 2
+```
+
+`panel-test` 不发送运动命令，画面为大数字 1、左上绿色块和右上蓝色块。`--display-first` 使用同一个控制连接建立显示会话、维持心跳，并通过 UDP 7422 发送 TOSF 最终帧；Pi 状态确认接收到至少一帧后才发送动作。它不能判断实体灯板是否真正亮起，仍需现场观察。测试结束或连接关闭后自动清屏，不要另开一个进程占用显示/运动连接。
+
+回零时底部显示蓝色状态条，因坐标尚无参考，不显示有效位置标记。回零后，青色标记为步进脉冲估计的机构位置，绿色十字为移动目标，蓝线为本次会话记录的机构轨迹；底部绿色表示已回零且空闲。遥测过期后隐藏位置标记并显示蓝色叉。图像是把 342×515 mm 行程压缩到第一块面板内的缩略诊断图，不是棋子真实观测，也不代表灯板像素已与桌面毫米位置对齐。红色通道仍关闭。
+
+本机测试共 12 项，新增覆盖 TOSF/UDP 组帧、显示会话在运动前建立、无运动命令的亮屏测试、第二块区域及红色全黑、坐标裁剪。2026-10-23 从电脑对真实 Pi 执行过 2 秒 `panel-test`，状态确认收到图像帧；未据此宣称灯板物理输出通过。
+
+### 两块灯板组成完整 64×64 显示
+
+在电脑命令中使用 `--display-all`，位置、目标和轨迹将使用两块拼接后的完整画布；状态条在旋转前位于第 60 行（从 0 开始），靠近逻辑整屏底部，不再位于两块交界处。Pi 的两块串联及 64×64 映射继续沿用，仅需更新电脑端工具。
+
+```powershell
+python ./pc-runtime/tools/control_pi.py --host 192.168.1.2 --display-all panel-test --seconds 10
+python ./pc-runtime/tools/control_pi.py --host 192.168.1.2 --display-all home
+python ./pc-runtime/tools/control_pi.py --host 192.168.1.2 --display-all move --x 20 --y 20 --speed 2
+```
+
+整屏测试上半显示数字 1、下半显示数字 2，底部带蓝条，不发送运动命令；原 `panel-test` 默认和 `--display-first` 仍保留单块模式，两个显示选项互斥。整屏模式下坐标缩略图纵向覆盖两块面板，仍需进行毫米到像素的实物标定才能用于桌面位置对齐。测试共 14 项，新增验证整屏状态条位置和两块显示区域的 UDP 图像数据。
+
+按当前装配方向，整屏模式现在默认将整幅画面在屏幕平面内绕 Z 轴旋转 180°：输出像素为 `(63-x, 63-y)`，数字、位置、轨迹、角标及状态条整体旋转，两块内容随之交换位置，颜色通道不变。上述上/下及底部描述是旋转前的逻辑布局；旋转后状态条输出在第 3 行。运动请求的毫米坐标、轴方向及 Arduino 配置保持不变。用 `--rotation 0` 可临时恢复原显示方向；单块模式默认不旋转，显式选择 180 时只旋转第一块内部，不点亮第二块。
+
+```powershell
+python ./pc-runtime/tools/control_pi.py --host 192.168.1.2 --display-all --rotation 180 panel-test --seconds 10
+python ./pc-runtime/tools/control_pi.py --host 192.168.1.2 --display-all --rotation 0 panel-test --seconds 10
+```
+
+测试现共 17 项，包含 RGB 像素整体旋转、单块旋转范围及旋转显示时运动坐标保持不变。
+
+按用户确认，以蓝色状态边为下方观察时，机构回零点位于左下角，X 正方向向右、Y 正方向向上。因此缩略图的坐标映射使用左下原点：完整画布在整体旋转前将 `(0,0)` 映射到 `(2,56)`，`(342,515)` 映射到 `(61,2)`，再统一应用当前的 180° 显示旋转。位置、目标和轨迹共用该映射；不修改 Arduino 电机方向或步数换算。当前 18 项测试包含原点及两个正方向的映射回归测试。
+
+手动 `move` 使用绝对毫米坐标，`--speed 2` 为 2 mm/s。回零后约 `(2,2)` 到 `(20,20)` 每轴只变化约 18 mm；再次发送相同目标不会继续前进。工具在发送 MOVE 前会打印机构报告的起点、绝对目标、X/Y 差值及速度。报告坐标仍是步进脉冲估计，实际距离需用尺子标定，不能仅凭 COMPLETED 判断步距正确。
+
 详细架构和参数见[中文技术说明书](../docs/TABLETOP_OS_TECHNICAL_GUIDE_ZH.md)，明天实测按[联调记录表](../docs/HARDWARE_COMMISSIONING_ZH.md)。
 
 ## AprilTag 摄像头原型
