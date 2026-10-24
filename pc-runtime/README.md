@@ -2,6 +2,18 @@
 
 Python 3.11+。实现单棋子双捏合交互、PC RGB 合成、舵机升降永磁铁动作序列与观测验证。Pi 只显示最终像素并桥接设备。
 
+## 统一 PC 主程序
+
+现在统一使用 `python -m tabletop_os` 启动，默认打开手势拖动应用的预览模式。已有选区时用 `--reuse-map`；系统服务在 `src/tabletop_os/system/`，应用在 `src/tabletop_os/apps/`。完整分工和命令见[PC 主程序与系统/应用分层](../docs/PC_LAYERS_ZH.md)。
+
+现场联动设置（需要已回零及正确标定）：
+
+```powershell
+./pc-runtime/.venv/Scripts/python.exe -m tabletop_os --app gesture-drag --reuse-map --constant-engage --allow-pickup-offset --speed 15
+```
+
+旧 `tools/hand_pointer.py` 继续兼容，但只转交给上述同一主入口。原仿真命令不变；原带升降舵机的实物模式明确选择 `--app single-piece`。
+
 ## 先运行仿真
 
 从仓库根目录运行；不会连接任何硬件：
@@ -38,7 +50,7 @@ python -m venv pc-runtime/.venv
 复制 config/runtime.json 为 config/local-runtime.json，设置 Pi IP；安全角度实测后再填 gripper.release_angle/engage_angle、settle_s，最后 calibrated=true。目前用户角度未标定，默认锁住实际动作。Pi 的 allow_network_commands 也默认 false，必须完成硬件验证后人工启用。
 
 ```powershell
-./pc-runtime/.venv/Scripts/python.exe -m tabletop_os --config ./pc-runtime/config/local-runtime.json --input camera --log ./pc-runtime/logs/hardware.log
+./pc-runtime/.venv/Scripts/python.exe -m tabletop_os --app single-piece --config ./pc-runtime/config/local-runtime.json --input camera --log ./pc-runtime/logs/hardware.log
 ```
 
 真实模式要求摄像头观测，禁止用自动脚本或鼠标冒充真实棋子观测。HOME 会先抬起、等待再回零；双捏合动作按 release→seek→engage→drag→release→verify 执行。物理急停、角度、限位和相机误差仍待实物验收。
@@ -162,7 +174,7 @@ py -m venv .venv-apriltag
 
 ### 仅测试手势指针（灯板区域独立映射）
 
-运行 `./pc-runtime/.venv/Scripts/python.exe pc-runtime/tools/hand_pointer.py --config pc-runtime/config/local-runtime.json`。窗口内按画面中的左上、右上、右下、左下，点击两块灯板合成屏幕在桌面上的实际覆盖四角，按 S 开始。第一点后画面暂停供选区；启动后恢复实时识别。R 清除选区，Esc 或关闭窗口退出。每次启动重新选区，最近结果保存为独立的 `config/local-display-map.json`，不替代机械毫米坐标标定。
+运行 `./pc-runtime/.venv/Scripts/python.exe -m tabletop_os --app gesture-drag --config pc-runtime/config/local-runtime.json`。窗口内按画面中的左上、右上、右下、左下，点击两块灯板合成屏幕在桌面上的实际覆盖四角，按 S 开始。第一点后画面暂停供选区；启动后恢复实时识别。R 清除选区，Esc 或关闭窗口退出。每次启动重新选区，最近结果保存为独立的 `config/local-display-map.json`，不替代机械毫米坐标标定。
 
 指针取拇指尖和食指尖的中点；超出选区或没有检测到手时隐藏手指光圈，已记住的标签方框仍保留。默认沿用整屏 180° 输出旋转，可用 `--rotation 0` 比较实体方向。只运行此工具，避免其他程序占用 Pi 的唯一控制连接。默认预览模式发送心跳、状态和显示帧，不提交回零、移动或舵机动作；底层连接退出时仍发送停止请求。灯板小于机械行程时，仅覆盖灯板区域，不把整个机械行程压缩到灯板上。必须现场核对指针四角与移动方向，确认 Pi 收帧不等于灯板物理对齐通过。
 
@@ -179,7 +191,7 @@ py -m venv .venv-apriltag
 磁铁已由机构保持吸合时，可暂不标定升降舵机，用独立模式测试已吸住棋子的短距离拖动。先拿开棋子、清空回零路径并完成回零，再把机构定位到测试位置，棋子放在磁铁正上方；该模式不会自动前往别的棋子，也不发送升降或回零命令。
 
 ```powershell
-./pc-runtime/.venv/Scripts/python.exe pc-runtime/tools/hand_pointer.py --config pc-runtime/config/local-runtime.json --reuse-map --constant-engage
+./pc-runtime/.venv/Scripts/python.exe -m tabletop_os --app gesture-drag --config pc-runtime/config/local-runtime.json --reuse-map --constant-engage
 ```
 
 灯板选区与机械毫米标定各自独立：目标经相机坐标转换到 `local-calibration.json` 的机械坐标，显示镜像/旋转不参与电机坐标转换。先核对相机毫米标定；如果磁铁位置与选中标签不符（默认容差 3 mm）、尚未回零、遥测过期、标签当前不可见或 Pi 未启用网络运动，确认会显示原因并拒绝动作。标签无限记忆仍只用于显示，不用于替代动作开始和完成后的真实观测。

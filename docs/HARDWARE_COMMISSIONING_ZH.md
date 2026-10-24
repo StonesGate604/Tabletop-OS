@@ -46,7 +46,7 @@ COM3 和 90 只是显式命令示例，不是已确认安全的设备路径和�
 角度、回零、限位、相机与显示都通过后，才人工启用 Pi `motion.allow_network_commands=true` 并重启。PC 使用 camera 模式和 local-runtime 配置：
 
 ```powershell
-./pc-runtime/.venv/Scripts/python.exe -m tabletop_os --config ./pc-runtime/config/local-runtime.json --input camera --log ./pc-runtime/logs/hardware.log
+./pc-runtime/.venv/Scripts/python.exe -m tabletop_os --app single-piece --config ./pc-runtime/config/local-runtime.json --input camera --log ./pc-runtime/logs/hardware.log
 ```
 
 第一次捏合只选中，释放后移动光标；第二次捏合才提交。应看到 release → seek → engage → drag → release → VERIFYING，只有标签新观测连续满足误差才回 IDLE 并增加“已验证移动”计数。

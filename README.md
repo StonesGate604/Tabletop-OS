@@ -38,6 +38,8 @@ docs/                               项目上下文、路线和研究说明
 
 ## 最短上手路径
 
+PC 已统一为一个启动入口，系统服务与交互应用分开。当前相机/手势/标签/灯板/滑台联动的启动方法见[PC 主程序与系统/应用分层](docs/PC_LAYERS_ZH.md)。无参数启动为手势应用预览；以下 `--simulate` 命令继续运行原单棋子仿真。
+
 先运行不连接任何硬件的完整模拟（仓库根目录）：
 
 ```powershell
@@ -87,6 +89,7 @@ python -m venv pc-runtime/.venv
 ## 文档
 
 - [中文技术说明书：架构、代码、协议、部署与扩展](docs/TABLETOP_OS_TECHNICAL_GUIDE_ZH.md)
+- [PC 主程序与系统/应用分层](docs/PC_LAYERS_ZH.md)
 - [本次软件验证记录](docs/VALIDATION_2026-10-16.md)
 - [摄像头、手势、灯板与磁吸滑台联调记录](docs/VALIDATION_2026-10-24.md)
 - [首次实机联调与舵机标定记录表](docs/HARDWARE_COMMISSIONING_ZH.md)

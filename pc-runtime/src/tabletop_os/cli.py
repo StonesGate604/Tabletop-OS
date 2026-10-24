@@ -50,35 +50,80 @@ def run_demo(runtime: Runtime, duration: float, frame_path: Path | None = None) 
         runtime.close()
 
 
+def default_config(application: str) -> Path:
+    directory = Path(__file__).resolve().parents[2]/"config"
+    local = directory/"local-runtime.json"
+    return local if application == "gesture-drag" and local.is_file() else directory/"runtime.json"
+
+
+def configure_logging(config, log_path=None, gesture=False):
+    if log_path is None and gesture:
+        log_path = config.base_dir.parent/"logs/hand-pointer.log"
+    handlers = [logging.StreamHandler()]
+    if log_path:
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        handlers.append(logging.FileHandler(log_path, encoding="utf-8"))
+    logging.basicConfig(level=logging.INFO, handlers=handlers,
+                        format="%(asctime)s %(levelname)s %(name)s %(message)s")
+
+
 def main(argv=None) -> int:
-    parser = argparse.ArgumentParser(description="Tabletop OS V0.1 单棋子运行时")
-    parser.add_argument("--config", type=Path, default=Path(__file__).resolve().parents[2]/"config/runtime.json")
+    parser = argparse.ArgumentParser(description="Tabletop OS PC 主程序：系统服务 + 可选应用")
+    parser.add_argument("--app", choices=("gesture-drag", "single-piece"),
+                        help="默认手势拖动应用；--simulate 自动选择原单棋子应用")
+    parser.add_argument("--config", type=Path)
     parser.add_argument("--simulate", action="store_true", help="虚拟机构与独立棋子观测，不连接硬件")
-    parser.add_argument("--input", choices=("mouse", "camera"), default="mouse")
+    parser.add_argument("--input", choices=("mouse", "camera"))
     parser.add_argument("--headless", action="store_true")
     parser.add_argument("--demo", action="store_true", help="自动双捏合，仅限 headless simulation")
     parser.add_argument("--duration", type=float, default=60)
     parser.add_argument("--frame-output", type=Path)
     parser.add_argument("--log", type=Path)
     parser.add_argument("--check-config", action="store_true")
+    gesture = parser.add_argument_group("手势拖动应用")
+    gesture.add_argument("--reuse-map", action="store_true", help="沿用当前相机机位与灯板选区")
+    gesture.add_argument("--rotation", type=int, choices=(0, 180))
+    gesture.add_argument("--flip-x", action=argparse.BooleanOptionalAction, default=None)
+    gesture.add_argument("--hold-seconds", type=float, default=0, help="标签记忆时间；0 一直保留")
+    gesture.add_argument("--constant-engage", action="store_true", help="启用持续吸合的磁吸滑台联动")
+    gesture.add_argument("--allow-pickup-offset", action="store_true", help="本次测试跳过棋子与机构对齐检查")
+    gesture.add_argument("--speed", type=float, default=2, help="持续吸合模式速度 mm/s")
+    gesture.add_argument("--max-drag-mm", type=float, default=0, help="单次距离上限；0 仅受机械工作区限制")
     args = parser.parse_args(argv)
+    args.app = args.app or ("single-piece" if args.simulate or args.headless or args.demo else "gesture-drag")
+    args.config = args.config or default_config(args.app)
+    args.input = args.input or ("camera" if args.app == "gesture-drag" else "mouse")
+    if args.app == "gesture-drag":
+        if args.simulate or args.headless or args.demo:
+            parser.error("手势拖动应用使用真实摄像头；仿真请选择 --app single-piece")
+        if args.input != "camera":
+            parser.error("手势拖动应用要求 --input camera")
+        import math
+        if not (math.isfinite(args.speed) and 0.5 <= args.speed <= 25 and
+                math.isfinite(args.max_drag_mm) and args.max_drag_mm >= 0 and
+                math.isfinite(args.hold_seconds) and args.hold_seconds >= 0):
+            parser.error("速度须为 0.5–25 mm/s，距离与记忆时间须为非负有限值")
+    elif (args.constant_engage or args.allow_pickup_offset or args.reuse_map or
+          args.rotation is not None or args.flip_x is not None or args.hold_seconds != 0 or
+          args.speed != 2 or args.max_drag_mm != 0):
+        parser.error("这些灯板/持续吸合选项需要 --app gesture-drag")
     if args.headless != args.demo or (args.demo and not args.simulate):
         parser.error("--headless --demo 必须一起使用，且要求 --simulate")
     if args.simulate and args.input == "camera":
         parser.error("仿真使用鼠标/脚本输入；摄像头验证使用硬件模式并保持运动锁")
     if not 1 <= args.duration <= 3600:
         parser.error("duration 必须为 1–3600 秒")
-    if not args.simulate and args.input == "mouse" and not args.check_config:
+    if args.app == "single-piece" and not args.simulate and args.input == "mouse" and not args.check_config:
         parser.error("真实动作要求 AprilTag 观测，请使用 --input camera；鼠标仅用于仿真")
-    handlers = [logging.StreamHandler()]
-    if args.log:
-        args.log.parent.mkdir(parents=True, exist_ok=True)
-        handlers.append(logging.FileHandler(args.log, encoding="utf-8"))
-    logging.basicConfig(level=logging.INFO, handlers=handlers, format="%(asctime)s %(levelname)s %(name)s %(message)s")
     try:
         config = load_config(args.config)
+        configure_logging(config, args.log, args.app == "gesture-drag")
         if args.check_config:
             print("配置有效；舵机标定：", config.gripper.calibrated)
+            return 0
+        if args.app == "gesture-drag":
+            from .gesture_ui import run_gesture_window
+            run_gesture_window(config, args)
             return 0
         runtime = Runtime(config, args.simulate, mouse=args.input == "mouse")
         if args.demo:
@@ -88,7 +133,7 @@ def main(argv=None) -> int:
         from .ui import run_window
         run_window(runtime, args.input == "camera")
         return 0
-    except (ValueError, OSError, RuntimeError) as exc:
+    except (ValueError, OSError, RuntimeError, ImportError) as exc:
         logging.error("启动失败：%s", exc)
         return 1
 

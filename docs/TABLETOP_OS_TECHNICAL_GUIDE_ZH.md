@@ -1,5 +1,7 @@
 # Tabletop OS V0.1 中文技术说明书
 
+> **2026-10-24 更新：** PC 现已统一启动入口，并拆分系统服务与应用层。当前入口、模块路径及相机联动命令以 [PC 分层说明](PC_LAYERS_ZH.md) 为准；下面保留 2026-10-16 的升降序列、协议与诊断说明。原 `interaction.py` 的状态机已移到 `apps/single_piece.py`，旧路径保留兼容导出。
+
 > 更新日期：2026-10-16。本文对应本次工作区的 V0.1 软件实现，已从原先“只有 Pi/Arduino”的说明重写。代码文件指纹见 [CODE_REFERENCE_MANIFEST.json](CODE_REFERENCE_MANIFEST.json)，用 [校验工具](../tools/validate_technical_guide.py) 检查文档链接、关键符号和代码是否变化。
 >
 > **软件候选版已实现，实物闭环尚未验收。** 已有可运行的鼠标仿真、摄像头/MediaPipe/AprilTag 接口、双捏合交互、舵机升降永磁铁动作序列、PC RGB 合成、Pi 像素帧接收和 Arduino 固件。用户确认舵机角度尚未标定，默认实物动作锁定；本次没有连接相机、Pi、灯板或电机进行实测。编译、仿真和离线识别不能替代真实硬件验收。
@@ -189,7 +191,7 @@ Tabletop-OS/
 | [model.py](../pc-runtime/src/tabletop_os/model.py)：`Point`、`InputSample`、`Observation`、`MoveIntent`、`DeviceSnapshot`、`snapshot_from_message()` | 输入/观测/设备 JSON → 不可变值对象 | 各模块共享；`can_move/can_operate_servo` 把遥测年龄加上状态接收后的时间，防止旧快照伪装新状态 |
 | [runtime.py](../pc-runtime/src/tabletop_os/runtime.py)：`Runtime.start/tick/home/stop/reset/close`、`_home_events` | 输入样本、观测、设备事件 → 状态推进、请求、最终 RGB | Tk 或 headless 每帧调用；拥有 controller、pinch、sequence、compositor、device；只有主线程修改交互状态；HOME 也先释放磁铁 |
 | [gestures.py](../pc-runtime/src/tabletop_os/gestures.py)：`PinchDetector.update()` | 距离比值和单调时间 → begin/end/lost/None | Runtime 在新输入帧到达时调用；迟滞、去抖和重新武装分开，维持捏合不重复触发 |
-| [interaction.py](../pc-runtime/src/tabletop_os/interaction.py)：`Phase`、`DemoController.input/observe/event/tick/take_intent` | 手势边沿、棋子观测、逻辑任务结果 → MoveIntent 或状态变化 | Runtime 调用；保存 piece/target/request_id/command_id、截止时间和验证计数；只用新鲜且不同时间的观测提交位置 |
+| [apps/single_piece.py](../pc-runtime/src/tabletop_os/apps/single_piece.py)：`Phase`、`DemoController.input/observe/event/tick/take_intent` | 手势边沿、棋子观测、逻辑任务结果 → MoveIntent 或状态变化 | Runtime 调用；旧 interaction.py 保留兼容导出；只用新鲜且不同时间的观测提交位置 |
 | [sequence.py](../pc-runtime/src/tabletop_os/sequence.py)：`MoveSequence.begin/update/_dispatch/abort` | MoveIntent、设备快照和事件 → servo/move 请求 | Runtime 调用；只有一个阶段和一个在途请求；每次等确认与稳定时间后才发下一步，出错发 stop、不自动重放 |
 | [render.py](../pc-runtime/src/tabletop_os/render.py)：`Compositor.pixel/put/circle/record/render` | 交互状态、执行器遥测、时间 → 12288 字节 RGB | Runtime 每帧调用；有界 deque 保存拖影；纯绘制不调用设备，便于单独测试和修改 |
 | [device.py](../pc-runtime/src/tabletop_os/device.py)：`NetworkDevice`、`_run/_session_loop` | request/publish → TCP/UDP；网络 → snapshot/poll | Runtime 使用；独立 I/O 线程维持心跳和重连；命令队列上限 32、事件 128，图像只有最新一帧；掉线清队列避免延迟重放 |
@@ -200,7 +202,7 @@ Tabletop-OS/
 | [ui.py](../pc-runtime/src/tabletop_os/ui.py)：`run_window()` | Tk 鼠标/按键或视觉结果 → Runtime.tick 和显示 | Tk after 回调驱动主循环；显示模式、目标、执行器、观测、错误和验证计数；仿真可勾选滑脱/标签丢失 |
 
 <!-- code-ref: pc-runtime/src/tabletop_os/runtime.py::Runtime.tick -->
-<!-- code-ref: pc-runtime/src/tabletop_os/interaction.py::DemoController.observe -->
+<!-- code-ref: pc-runtime/src/tabletop_os/apps/single_piece.py::DemoController.observe -->
 <!-- code-ref: pc-runtime/src/tabletop_os/sequence.py::MoveSequence.update -->
 <!-- code-ref: pc-runtime/src/tabletop_os/gestures.py::PinchDetector.update -->
 <!-- code-ref: pc-runtime/src/tabletop_os/vision.py::camera_process -->
@@ -883,7 +885,7 @@ MOVE_TO 4 10 20 2
 完成[实机表](HARDWARE_COMMISSIONING_ZH.md)的角度、方向、距离、限位、相机标定后，人工启用Pi deployed配置allow_network_commands并重启，再启动：
 
 ```powershell
-./pc-runtime/.venv/Scripts/python.exe -m tabletop_os --config ./pc-runtime/config/local-runtime.json --input camera --log ./pc-runtime/logs/hardware.log
+./pc-runtime/.venv/Scripts/python.exe -m tabletop_os --app single-piece --config ./pc-runtime/config/local-runtime.json --input camera --log ./pc-runtime/logs/hardware.log
 ```
 
 先点HOME（先release、settle、再HOME），等待设备新鲜IDLE/referenced，看到ID=0棋子的新观测后再双捏合。PC不会自动解锁Pi或猜舵机角度。尚未完成明天实测前，此命令的相机/实物行为不能标成验收通过。
