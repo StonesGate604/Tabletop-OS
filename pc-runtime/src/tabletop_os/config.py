@@ -72,6 +72,10 @@ class CameraConfig:
     min_confidence: float = 0.6
     april_tag_dictionary: str = "DICT_APRILTAG_36h11"
     marker_min_area_px: float = 100
+    crop_x: int = 0
+    crop_y: int = 0
+    crop_width: int = 0
+    crop_height: int = 0
 
 
 @dataclass(frozen=True)
@@ -147,6 +151,11 @@ def load_config(path: str | Path) -> RuntimeConfig:
         raise ValueError("Invalid network configuration")
     if not (c.index >= 0 and c.width > 0 and c.height > 0 and 0 < c.min_confidence <= 1 and c.marker_min_area_px > 0):
         raise ValueError("Invalid camera configuration")
+    if (min(c.crop_x, c.crop_y, c.crop_width, c.crop_height) < 0 or
+            bool(c.crop_width) != bool(c.crop_height) or
+            (not c.crop_width and (c.crop_x or c.crop_y)) or
+            c.crop_x+c.crop_width > c.width or c.crop_y+c.crop_height > c.height):
+        raise ValueError("Invalid camera crop rectangle")
     g = result.gripper
     if not (g.settle_s >= 0.1 and g.pickup_tolerance_mm > 0 and all(
             a is None or 0 <= a <= 180 for a in (g.release_angle, g.engage_angle))):

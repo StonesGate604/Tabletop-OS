@@ -4,6 +4,7 @@ from pathlib import Path
 import cv2
 from tabletop_os.calibration import from_corners
 from tabletop_os.config import load_config
+from tabletop_os.vision import crop_frame, read_camera_frame
 
 
 def main():
@@ -22,11 +23,10 @@ def main():
             capture = cv2.VideoCapture(config.camera.index)
             capture.set(cv2.CAP_PROP_FRAME_WIDTH, config.camera.width)
             capture.set(cv2.CAP_PROP_FRAME_HEIGHT, config.camera.height)
-            ok, image = capture.read()
-            if not ok:
-                raise RuntimeError("Camera read failed")
+            image = read_camera_frame(capture)
         if image is None:
             raise ValueError("Image not available")
+        image = crop_frame(image, config.camera)
         output = args.output or config.path(config.camera.calibration_path)
         height, width = image.shape[:2]
         corners = []

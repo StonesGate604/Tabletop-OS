@@ -9,6 +9,21 @@ HAS_CV = importlib.util.find_spec('cv2') is not None
 
 @unittest.skipUnless(HAS_CV, 'Install the vision extra')
 class VisionTests(unittest.TestCase):
+    def test_crop_and_calibration_share_pixel_origin(self):
+        import numpy as np
+        from tabletop_os.config import CameraConfig
+        from tabletop_os.vision import crop_frame
+        frame = np.zeros((720,1280,3), dtype=np.uint8)
+        frame[100,200] = [20,40,60]
+        cropped = crop_frame(frame, CameraConfig(crop_x=150,crop_y=40,crop_width=1070,crop_height=640))
+        self.assertEqual(cropped.shape, (640,1070,3))
+        self.assertEqual(cropped[60,50].tolist(), [20,40,60])
+        h = from_corners([(0,639),(1069,639),(1069,0),(0,0)], (1070,640), BoardConfig())
+        self.assertAlmostEqual(h.map(0,639).x, 0)
+        self.assertAlmostEqual(h.map(1069,0).y, 515)
+        with self.assertRaises(ValueError):
+            crop_frame(frame[:300], CameraConfig(crop_width=1000,crop_height=640))
+
     def test_homography_maps_corners_and_rejects_degenerate(self):
         h = from_corners([(100,100),(700,80),(750,550),(80,560)],(800,600),BoardConfig())
         point = h.map(750,550)

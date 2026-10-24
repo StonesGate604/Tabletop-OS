@@ -12,6 +12,27 @@ from .model import InputSample, Observation
 LOG = logging.getLogger(__name__)
 
 
+def crop_frame(frame, config):
+    """Use the same pixel origin for calibration and all vision consumers."""
+    if not config.crop_width:
+        return frame
+    x, y, w, h = config.crop_x, config.crop_y, config.crop_width, config.crop_height
+    if x+w > frame.shape[1] or y+h > frame.shape[0]:
+        raise ValueError("Camera crop outside actual frame; check resolution")
+    return frame[y:y+h, x:x+w].copy()
+
+
+def read_camera_frame(capture, timeout_s=10):
+    """Virtual cameras can return black frames while their source starts."""
+    deadline = time.monotonic()+timeout_s
+    while time.monotonic() < deadline:
+        ok, frame = capture.read()
+        if ok and frame is not None and frame.std() > 1:
+            return frame
+        time.sleep(0.02)
+    raise RuntimeError("Camera has no usable image; check virtual camera output")
+
+
 @dataclass(frozen=True)
 class VisionResult:
     sample: InputSample
@@ -100,24 +121,31 @@ def camera_process(config: RuntimeConfig, output, stop):
         landmarker = mediapipe.tasks.vision.HandLandmarker.create_from_options(options)
         tags = AprilTagDetector(cfg.april_tag_dictionary, cfg.marker_min_area_px)
         previous_ms = -1
+        first_frame = read_camera_frame(capture)
         while not stop.is_set():
-            ok, frame = capture.read()
+            if first_frame is not None:
+                ok, frame = True, first_frame
+                first_frame = None
+            else:
+                ok, frame = capture.read()
             now = time.monotonic()
             if not ok:
                 raise RuntimeError("Camera read failed")
-            height, width = frame.shape[:2]
-            if (width, height) != (calibration.width, calibration.height):
-                raise ValueError("Camera resolution differs from calibration; recalibrate")
             if calibration.camera_matrix is not None:
                 frame = cv2.undistort(frame, np.array(calibration.camera_matrix), np.array(calibration.distortion))
+            frame = crop_frame(frame, cfg)
+            height, width = frame.shape[:2]
+            if (width, height) != (calibration.width, calibration.height):
+                raise ValueError("Camera resolution/crop differs from calibration; recalibrate")
             rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             timestamp_ms = max(previous_ms+1, int(now*1000))
             previous_ms = timestamp_ms
             result = landmarker.detect_for_video(mediapipe.Image(image_format=mediapipe.ImageFormat.SRGB, data=rgb), timestamp_ms)
             sample = hand_sample(result.hand_landmarks[0], width, height, calibration, now) if result.hand_landmarks else InputSample(None, None, now)
             observations = tags.detect(frame, calibration, now)
-            small = cv2.resize(rgb, (480, 270))
-            preview = b"P6\n480 270\n255\n"+small.tobytes()
+            preview_height = max(1, round(height*480/width))
+            small = cv2.resize(rgb, (480, preview_height))
+            preview = f"P6\n480 {preview_height}\n255\n".encode()+small.tobytes()
             _put_latest(output, VisionResult(sample, observations, preview))
     except Exception as exc:
         _put_latest(output, VisionResult(InputSample(None, None, time.monotonic()), error=str(exc)))

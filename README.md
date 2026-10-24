@@ -10,7 +10,7 @@ Tabletop OS 是一个把手势感知、HUB75 灯光反馈和 CoreXY 磁力棋子
 | --- | --- | --- |
 | Arduino 下位机 | Uno 编译、假 HAL 测试通过；实机待验 | 回零、移动、遥测、停止、看门狗、命令编号同步 |
 | Pi Bridge | 主机编译、真实回环协议测试通过；Pi/HUB75 待验 | TCP 控制、TOSF 帧接收、串口桥接、安全联锁 |
-| PC Runtime | 仿真与离线视觉测试通过；摄像头实测待验 | 双捏合、升降/定位/拖动序列、RGB、观测验证、操作界面 |
+| PC Runtime | 仿真通过；摄像头、灯板与持续吸合联动初测通过 | 双捏合、标签遮挡保持、独立灯板映射；完整升降流程仍待验 |
 | 最终帧协议 | 已实现并跨 Python/C++ 验证 | UDP 7422，完整 64×64 RGB888、CRC32、会话和超时 |
 | 完整实物 Demo | 尚未验收 | 先测安全舵机角度、相机标定和硬件链路 |
 
@@ -88,6 +88,7 @@ python -m venv pc-runtime/.venv
 
 - [中文技术说明书：架构、代码、协议、部署与扩展](docs/TABLETOP_OS_TECHNICAL_GUIDE_ZH.md)
 - [本次软件验证记录](docs/VALIDATION_2026-10-16.md)
+- [摄像头、手势、灯板与磁吸滑台联调记录](docs/VALIDATION_2026-10-24.md)
 - [首次实机联调与舵机标定记录表](docs/HARDWARE_COMMISSIONING_ZH.md)
 - [项目上下文与诊断基线](docs/Tabletop_OS_Project_Context.md)
 - [开发路线](docs/Tabletop_OS_Development_Roadmap.md)
