@@ -108,11 +108,14 @@ python ./pc-runtime/tools/control_pi.py --host 192.168.1.2 --display-first move 
 
 ```powershell
 python ./pc-runtime/tools/control_pi.py --host 192.168.1.2 --display-all panel-test --seconds 10
+python ./pc-runtime/tools/control_pi.py --host 192.168.1.2 --display-all --rotation 0 panel-test --pattern solid --seconds 10
 python ./pc-runtime/tools/control_pi.py --host 192.168.1.2 --display-all home
 python ./pc-runtime/tools/control_pi.py --host 192.168.1.2 --display-all move --x 20 --y 20 --speed 2
 ```
 
-整屏测试在三个逻辑分区依次显示数字 1、2、3，底部带蓝条，不发送运动命令；原 `panel-test` 默认和 `--display-first` 仍保留单块模式，两个显示选项互斥。用 `--rotation 0` 测试时，靠近机械 `(0,0)` 的级联第 1 块应显示 1，随后两块显示 2、3。整屏模式下坐标缩略图纵向覆盖三块面板，仍需进行毫米到像素的实物标定才能用于桌面位置对齐。
+整屏测试在三个逻辑分区依次显示数字 1、2、3，底部带蓝条，不发送运动命令；`--pattern solid` 改为第 1 块全绿、第 2 块全蓝、第 3 块全青，适合区分小图案不清、颜色通道和面板顺序问题。测试期间工具每秒报告 Pi 的帧号、帧龄和会话号，避免把“曾经收到一帧”误当成持续刷新。原 `panel-test` 默认和 `--display-first` 仍保留单块模式，两个显示选项互斥。用 `--rotation 0` 测试时，靠近机械 `(0,0)` 的级联第 1 块应显示 1，随后两块显示 2、3。整屏模式下坐标缩略图纵向覆盖三块面板，仍需进行毫米到像素的实物标定才能用于桌面位置对齐。
+
+PC 测试像素已经使用满通道值；若隔着桌面扩散层难以分辨青色与绿色，应逐步提高 Pi 配置中的 `display.brightness` 并执行 `systemctl restart tabletop-os-bridge` 使其生效，不要只执行 `start`。当前三块实物在 40% 亮度下已确认能显示绿、蓝、青以及数字 1、2、3；继续提高前应观察供电末端压降、接头温升和闪烁。
 
 按当前装配方向，整屏模式默认将整幅画面在屏幕平面内绕 Z 轴旋转 180°：输出像素为 `(63-x, 95-y)`，数字、位置、轨迹、角标及状态条整体旋转，第一与第三块的内容随之交换位置，颜色通道不变。上述分区及底部描述是旋转前的逻辑布局；旋转后状态条输出在第 3 行。运动请求的毫米坐标、轴方向及 Arduino 配置保持不变。用 `--rotation 0` 可直接核对物理级联顺序；单块模式默认不旋转，显式选择 180 时只旋转第一块内部，不点亮第 2、3 块。
 

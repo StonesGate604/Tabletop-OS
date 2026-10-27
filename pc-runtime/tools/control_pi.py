@@ -19,9 +19,12 @@ from tabletop_os.frame_protocol import encode_frame, FRAME_BYTES, HEIGHT, WIDTH
 
 class PanelDisplay:
     """Diagnostic map on one 64x32 panel or the complete 64x96 display."""
-    def __init__(self, host, port, test=False, full=False, rotation=0):
+    def __init__(self, host, port, test=False, full=False, rotation=0,
+                 test_pattern="digits"):
         if rotation not in (0, 180):
             raise ValueError("显示旋转角度须为 0 或 180")
+        if test_pattern not in ("digits", "solid"):
+            raise ValueError("未知灯板测试图案")
         self.rotation = rotation
         self.udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         try:
@@ -34,6 +37,7 @@ class PanelDisplay:
         self.requested = self.opened = self.received = False
         self.next_frame = 0
         self.test = test
+        self.test_pattern = test_pattern
         self.height = HEIGHT if full else 32
         self.status = {}
         self.status_at = 0
@@ -79,6 +83,16 @@ class PanelDisplay:
             for step in range(steps + 1):
                 pixel(round(p0[0] + dx * step / steps),
                       round(p0[1] + dy * step / steps), green, blue)
+
+        if self.test and self.test_pattern == "solid":
+            # High-contrast whole-panel fields isolate transport/mapping from
+            # small-glyph visibility: panel 1 green, panel 2 blue, panel 3 cyan.
+            colors = ((255, 0), (0, 255), (255, 255))
+            for panel, (green, blue) in enumerate(colors[:self.height // 32]):
+                for y in range(panel * 32, (panel + 1) * 32):
+                    for x in range(WIDTH):
+                        pixel(x, y, green, blue)
+            return bytes(rgb)
 
         for x in range(WIDTH):
             pixel(x, 0, 20, 35)
@@ -164,7 +178,7 @@ class ControlError(RuntimeError):
 
 class Session:
     def __init__(self, host, port, display=False, frame_port=7422, panel_test=False,
-                 full_display=False, rotation=0):
+                 full_display=False, rotation=0, panel_pattern="digits"):
         self.sock = socket.create_connection((host, port), timeout=3)
         self.sock.settimeout(0.1)
         self.buffer = b""
@@ -174,7 +188,8 @@ class Session:
         self.panel = None
         if display:
             try:
-                self.panel = PanelDisplay(host, frame_port, panel_test, full_display, rotation)
+                self.panel = PanelDisplay(host, frame_port, panel_test, full_display, rotation,
+                                          panel_pattern)
                 self.sock.settimeout(0.02)
             except BaseException:
                 self.sock.close()
@@ -278,9 +293,10 @@ def run(args):
     if rotation is None:
         rotation = 180 if full_display else 0
     display = getattr(args, "display_first", False) or full_display or args.command == "panel-test"
+    panel_pattern = getattr(args, "pattern", "digits")
     session = Session(args.host, args.port, display,
                       getattr(args, "frame_port", 7422), args.command == "panel-test", full_display,
-                      rotation)
+                      rotation, panel_pattern)
     motion_sent = False
     completed = False
     try:
@@ -298,12 +314,27 @@ def run(args):
         session.heartbeat = True
         if args.command == "panel-test":
             started_at = None
-            if full_display:
+            last_frame_report = 0.0
+            if panel_pattern == "solid":
+                print("纯色测试：第1块绿色、第2块蓝色、第3块青色。", flush=True)
+            elif full_display:
                 print("整屏测试：数字 1、2、3 和蓝条已整体旋转 180°。" if rotation else
                       "整屏测试：三块板依次显示 1、2、3，蓝条位于整屏最下方。", flush=True)
             else:
                 print("第一块灯板测试：应显示数字 1，第二、三块保持黑屏。", flush=True)
             for msg in session.messages(args.seconds + 10):
+                if msg.get("type") == "status":
+                    now = time.monotonic()
+                    if now - last_frame_report >= 1.0:
+                        display_status = msg.get("display", {})
+                        print(
+                            "Pi 帧状态："
+                            f"seq={display_status.get('frame_seq', 0)}，"
+                            f"age={display_status.get('frame_age_ms', -1)} ms，"
+                            f"session={display_status.get('session', 0)}",
+                            flush=True,
+                        )
+                        last_frame_report = now
                 if session.panel.received:
                     if started_at is None:
                         started_at = time.monotonic()
@@ -390,6 +421,8 @@ def main(argv=None):
         commands.add_parser(name)
     panel = commands.add_parser("panel-test", help="测试灯板，不发送运动命令；可搭配 --display-all")
     panel.add_argument("--seconds", type=finite_number, default=10)
+    panel.add_argument("--pattern", choices=("digits", "solid"), default="digits",
+                       help="digits 显示编号；solid 用整块纯色检查传输和映射")
     move = commands.add_parser("move", help="移动到绝对坐标，单位 mm")
     move.add_argument("--x", type=finite_number, required=True)
     move.add_argument("--y", type=finite_number, required=True)

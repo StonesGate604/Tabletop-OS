@@ -308,6 +308,23 @@ class FirstPanelRenderTests(unittest.TestCase):
         finally:
             panel.close()
 
+    def test_full_solid_pattern_fills_each_panel_with_distinct_color(self):
+        panel = control.PanelDisplay("127.0.0.1", 9, test=True, full=True,
+                                     test_pattern="solid")
+        try:
+            pixels = panel.render(10)
+
+            def at(x, y):
+                offset = (y * WIDTH + x) * 3
+                return pixels[offset:offset + 3]
+
+            self.assertEqual(at(10, 10), bytes((0, 255, 0)))
+            self.assertEqual(at(10, 42), bytes((0, 0, 255)))
+            self.assertEqual(at(10, 74), bytes((0, 255, 255)))
+            self.assertFalse(any(pixels[::3]))
+        finally:
+            panel.close()
+
     def test_rotated_full_display_places_mechanical_home_on_first_panel(self):
         panel = control.PanelDisplay("127.0.0.1", 9, full=True, rotation=180)
         try:
