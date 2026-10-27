@@ -183,7 +183,7 @@ py -m venv .venv-apriltag
 
 ### 仅测试手势指针（灯板区域独立映射）
 
-运行 `./pc-runtime/.venv/Scripts/python.exe -m tabletop_os --app gesture-drag --config pc-runtime/config/local-runtime.json`。窗口内按画面中的左上、右上、右下、左下，点击两块灯板合成屏幕在桌面上的实际覆盖四角，按 S 开始。第一点后画面暂停供选区；启动后恢复实时识别。R 清除选区，Esc 或关闭窗口退出。每次启动重新选区，最近结果保存为独立的 `config/local-display-map.json`，不替代机械毫米坐标标定。
+运行 `./pc-runtime/.venv/Scripts/python.exe -m tabletop_os --app gesture-drag --config pc-runtime/config/local-runtime.json`。窗口内按画面中的左上、右上、右下、左下，点击三块灯板合成屏幕在桌面上的实际覆盖四角，按 S 开始。第一点后画面暂停供选区；启动后恢复实时识别。R 清除选区，Esc 或关闭窗口退出。每次启动重新选区，最近结果保存为独立的 `config/local-display-map.json`，不替代机械毫米坐标标定。
 
 指针取拇指尖和食指尖的中点；超出选区或没有检测到手时隐藏手指光圈，已记住的标签方框仍保留。默认沿用整屏 180° 输出旋转，可用 `--rotation 0` 比较实体方向。只运行此工具，避免其他程序占用 Pi 的唯一控制连接。默认预览模式发送心跳、状态和显示帧，不提交回零、移动或舵机动作；底层连接退出时仍发送停止请求。灯板小于机械行程时，仅覆盖灯板区域，不把整个机械行程压缩到灯板上。必须现场核对指针四角与移动方向，确认 Pi 收帧不等于灯板物理对齐通过。
 
