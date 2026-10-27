@@ -6,7 +6,7 @@
 
 > **2026-10-26 行程复测：** X 宽度行程为 `344−46=298 mm`，Y 长度行程为 `514−48=466 mm`，减数是 moving carriage 尺寸。2 mm 软件边距后的有效目标范围为 X `2–296 mm`、Y `2–464 mm`；此前基于 342×515 mm 的相机标定必须重新生成。
 
-> 更新日期：2026-10-26。本文对应本次工作区的 V0.1 软件实现，已从原先“只有 Pi/Arduino”的说明重写。代码文件指纹见 [CODE_REFERENCE_MANIFEST.json](CODE_REFERENCE_MANIFEST.json)，用 [校验工具](../tools/validate_technical_guide.py) 检查文档链接、关键符号和代码是否变化。
+> 更新日期：2026-10-27。本文对应本次工作区的 V0.1 软件实现，已从原先“只有 Pi/Arduino”的说明重写。代码文件指纹见 [CODE_REFERENCE_MANIFEST.json](CODE_REFERENCE_MANIFEST.json)，用 [校验工具](../tools/validate_technical_guide.py) 检查文档链接、关键符号和代码是否变化。
 >
 > **软件候选版已实现，实物闭环尚未验收。** 已有可运行的鼠标仿真、摄像头/MediaPipe/AprilTag 接口、双捏合交互、舵机升降永磁铁动作序列、PC RGB 合成、Pi 像素帧接收和 Arduino 固件。共享默认配置仍锁定实物动作，只有本机配置写入了已测端点；编译、仿真和端点测试不能替代完整真实硬件验收。
 
@@ -197,7 +197,7 @@ Tabletop-OS/
 | [gestures.py](../pc-runtime/src/tabletop_os/gestures.py)：`PinchDetector.update()` | 距离比值和单调时间 → begin/end/lost/None | Runtime 在新输入帧到达时调用；迟滞、去抖和重新武装分开，维持捏合不重复触发 |
 | [apps/single_piece.py](../pc-runtime/src/tabletop_os/apps/single_piece.py)：`Phase`、`DemoController.input/observe/event/tick/take_intent` | 手势边沿、棋子观测、逻辑任务结果 → MoveIntent 或状态变化 | Runtime 调用；旧 interaction.py 保留兼容导出；只用新鲜且不同时间的观测提交位置 |
 | [sequence.py](../pc-runtime/src/tabletop_os/sequence.py)：`MoveSequence.begin/update/_dispatch/abort` | MoveIntent、设备快照和事件 → servo/move 请求 | Runtime 调用；只有一个阶段和一个在途请求；每次等确认与稳定时间后才发下一步，出错发 stop、不自动重放 |
-| [render.py](../pc-runtime/src/tabletop_os/render.py)：`Compositor.pixel/put/circle/record/render` | 交互状态、执行器遥测、时间 → 12288 字节 RGB | Runtime 每帧调用；有界 deque 保存拖影；纯绘制不调用设备，便于单独测试和修改 |
+| [render.py](../pc-runtime/src/tabletop_os/render.py)：`Compositor.pixel/put/circle/record/render` | 交互状态、执行器遥测、时间 → 18432 字节 RGB | Runtime 每帧调用；有界 deque 保存拖影；纯绘制不调用设备，便于单独测试和修改 |
 | [device.py](../pc-runtime/src/tabletop_os/device.py)：`NetworkDevice`、`_run/_session_loop` | request/publish → TCP/UDP；网络 → snapshot/poll | Runtime 使用；独立 I/O 线程维持心跳和重连；命令队列上限 32、事件 128，图像只有最新一帧；掉线清队列避免延迟重放 |
 | [frame_protocol.py](../pc-runtime/src/tabletop_os/frame_protocol.py)：`encode_frame()`、`FrameAssembler.feed()`、`newer32()` | RGB ↔ TOSF 数据报 | NetworkDevice 编码；Python decoder 用于参考/测试；与 C++ 用真实网络测试互证，不靠 JSON 传 RGB |
 | [simulation.py](../pc-runtime/src/tabletop_os/simulation.py)：`SimulationDevice.request/tick/observation` | 同样的设备请求和虚拟时间 → 独立执行器/棋子位置、事件 | Runtime 在 simulate 模式替换网络设备；支持滑脱和标签丢失；不是把目标直接当成功观测 |
@@ -602,15 +602,15 @@ PC encode_frame 与Pi FrameAssembler::Feed使用同一26字节大端头：
 | --- | --- | --- |
 | 0 | 4 | ASCII TOSF |
 | 4 / 5 | 各1 | version=1 / reserved=0 |
-| 6 / 8 | 各2 | width=64 / height=64 |
+| 6 / 8 | 各2 | width=64 / height=96 |
 | 10 / 14 | 各4 | 非零session / uint32 frame_id |
-| 18 / 20 | 各2 | chunk_index（0–10）/ chunk_count=11 |
+| 18 / 20 | 各2 | chunk_index（0–15）/ chunk_count=16 |
 | 22 | 4 | 整张RGB的CRC-32/ISO-HDLC，同zlib.crc32 |
 
-后接像素分块，按y行、x列、RGB三个字节；总12288字节，前10块各1200，末块288，单包最大1226字节。Python结构格式为 `!4sBBHHIIHHI`。例如session123、frame77、第一块的头前22字节十六进制是：
+后接像素分块，按y行、x列、RGB三个字节；总18432字节，前15块各1200，末块432，单包最大1226字节。Python结构格式为 `!4sBBHHIIHHI`。例如session123、frame77、第一块的头前22字节十六进制是：
 
 ```text
-54 4f 53 46 01 00 00 40 00 40 00 00 00 7b 00 00 00 4d 00 00 00 0b
+54 4f 53 46 01 00 00 40 00 60 00 00 00 7b 00 00 00 4d 00 00 00 10
 # 后接4字节CRC32，再接1200字节payload；#解释行不属于协议
 ```
 
@@ -706,11 +706,11 @@ back_buffer_ = matrix_->SwapOnVSync(back_buffer_);
 
 CPU的frame_是一次合成结果；CreateFrameCanvas创建后缓冲，前缓冲供库扫描。写后缓冲后在VSync交换，并保存返回的下一次可写缓冲指针。不是反复修改正在显示的同一张图，也不是由PC等待每一行GPIO扫描。
 
-默认rows32、cols64、chain2、parallel1，经 `Remap:64,64|0,0n|0,32n` 变成64×64逻辑画布；Initialize要求库实际宽高匹配expected，否则清屏返回失败。方向须实物校准。库负责GPIO时序，应用传入brightness30、pwm_bits11、gpio_slowdown4和降权参数。[上游官方说明](https://github.com/hzeller/rpi-rgb-led-matrix)
+默认rows32、cols64、chain3、parallel1，经 `Remap:64,96|0,0n|0,32n|0,64n` 变成64×96逻辑画布；级联第1块靠近机械 `(0,0)`，随后是第2、3块。Initialize要求库实际宽高匹配expected，否则清屏返回失败。方向须实物校准。库负责GPIO时序，应用传入brightness30、pwm_bits11、gpio_slowdown4和降权参数。[上游官方说明](https://github.com/hzeller/rpi-rgb-led-matrix)
 
-`display.panel_type` 默认空字符串，对应库默认初始化；非空时传入库的 `Options::panel_type`。用户历史调试命令包含 FM6127，当前实物可优先配置 `"FM6127"` 并重新编译部署后验证。旧 Bridge 未读取此字段，不能只改 deployed JSON 而不更新程序。该选项用于芯片初始化，与 GPIO 引脚映射和 64×64 面板排列是不同设置。
+`display.panel_type` 默认空字符串，对应库默认初始化；非空时传入库的 `Options::panel_type`。用户历史调试命令包含 FM6127，当前实物可优先配置 `"FM6127"` 并重新编译部署后验证。旧 Bridge 未读取此字段，不能只改 deployed JSON 而不更新程序。该选项用于芯片初始化，与 GPIO 引脚映射和 64×96 面板排列是不同设置。
 
-PC/Pi目标都是60Hz，Pi错过节拍会跳过旧帧而非追赶；Tk实际周期还包含处理时间。STATE目标10Hz，空间连线不等于60Hz新位置测量。单帧12288字节×60约720KiB/s，11包/帧、660包/秒；本次未测真实相机端到端延迟、Pi帧率或HUB75扫描刷新率。主机stub不绘制像素，不能证明双缓冲实物效果。
+PC/Pi目标都是60Hz，Pi错过节拍会跳过旧帧而非追赶；Tk实际周期还包含处理时间。STATE目标10Hz，空间连线不等于60Hz新位置测量。单帧18432字节×60约1.05MiB/s，16包/帧、960包/秒；本次未测真实相机端到端延迟、Pi帧率或HUB75扫描刷新率。主机stub不绘制像素，不能证明双缓冲实物效果。
 
 ## H. 计算机视觉
 
@@ -818,7 +818,7 @@ PC配置[pc-runtime/config/runtime.json](../pc-runtime/config/runtime.json)：
 
 | section | 默认关键值及作用 |
 | --- | --- |
-| board | 298×466mm，margin2，64×64像素，flip=false；逻辑画面与运动边界 |
+| board | 298×466mm，margin2，64×96像素，flip=false；逻辑画面与运动边界 |
 | interaction | piece_id0、仿真初始80/100、选取22mm；输入250ms、观测500ms；pinch0.25/0.40、去抖60ms；速度10mm/s、动作90s；验证5秒/5mm/3样本 |
 | render | 目标60Hz、圆环4px、G140/B255；拖影B220、1500ms、128点、0.25mm最小步长 |
 | network | host127.0.0.1、TCP7420、帧UDP7422；heartbeat400ms、reconnect1000ms、response_timeout1500ms |
@@ -833,7 +833,7 @@ Pi配置[pi-bridge/config/tabletop-os.json](../pi-bridge/config/tabletop-os.json
 | --- | --- |
 | network | bind0.0.0.0，TCP7420、诊断UDP7421、帧UDP7422；heartbeat1500ms；control行4096字节 |
 | serial | enabled=true，/dev/ttyACM0（部署换稳定by-id），115200；重连1000、握手2200、PING400、退出750ms |
-| display | mode=frames；组帧100、无新帧250ms；rows32/cols64/chain2/parallel1；expected64×64；brightness30、PWM11、slowdown4；regular+Remap；降权tabletop-os |
+| display | mode=frames；组帧100、无新帧250ms；rows32/cols64/chain3/parallel1；expected64×96；brightness30、PWM11、slowdown4；regular+Remap；降权tabletop-os |
 | motion | allow_network_commands=false；X2–296、Y2–464mm，speed0.5–50mm/s；遥测500ms，任务180秒，STOP2500ms，servo ACK1500ms |
 | board/cursor/trail | 只供diagnostic本地绘图；默认物理范围0–298/466、光标250ms/4px、拖影1500ms/128点 |
 
@@ -878,13 +878,13 @@ MOVE_TO 4 10 20 2
 
 需要从 PC 单独验证机构时，可用 [control_pi.py](../pc-runtime/tools/control_pi.py) 的 `status/home/move/stop` 命令，操作方法见 [PC README](../pc-runtime/README.md)。它只依赖标准库，在单次动作期间持续发心跳，等待匹配的完成事件，错误或 Ctrl+C 时请求 STOP 并等待停止回报，不自动重放动作或重启服务。手动测试须先抬起并固定磁铁，工具不控制舵机，也不验证棋子真实位置；Pi 运动锁仍须人工启用。只有一个 TCP 控制者，因此运动时应在原窗口 Ctrl+C，另一个连接不能抢占执行 stop。
 
-该工具另支持 `panel-test` 和 `--display-first home/move`：画面只使用第一块对应的上 32 行，第二块保持黑屏；亮屏测试显示数字 1，运动时显示缩略位置、目标和轨迹。它复用 TOSF 编码和 TCP 显示会话，不改变 Pi 的固定 64×64 帧协议；实际面板映射和显示启用须在 Pi 端配置。帧收到回报只证明网络组帧成功，实体亮屏及坐标对齐仍须实测。
+该工具另支持 `panel-test` 和 `--display-first home/move`：画面只使用级联第一块对应的 32 行，第2、3块保持黑屏；亮屏测试显示数字 1，运动时显示缩略位置、目标和轨迹。它复用 TOSF 编码和 TCP 显示会话，使用 Pi 的固定 64×96 帧协议；实际面板映射和显示启用须在 Pi 端配置。帧收到回报只证明网络组帧成功，实体亮屏及坐标对齐仍须实测。
 
-使用 `--display-all panel-test/home/move` 可将画面扩展至完整 64×64：上、下半屏测试分别显示 1 和 2，运动位置与轨迹使用两块面板，状态条移至整屏底部第 60 行。它与 `--display-first` 互斥，仅改变 PC 合成范围，Pi 协议和两块映射不变。
+使用 `--display-all panel-test/home/move` 可将画面扩展至完整 64×96：三个分区测试分别显示 1、2、3，运动位置与轨迹使用三块面板，状态条移至整屏底部第 92 行。它与 `--display-first` 互斥；PC 和 Pi 必须同时使用三板协议与映射。
 
-当前装配下，整屏默认再旋转 180°，输出 `(x,y)` 映射为 `(63-x,63-y)`，包括数字与状态条；上段是旋转前的逻辑布局。可用 `--rotation 0` 恢复原方向或显式 `--rotation 180` 固定旋转。只转换最终像素，传给 Pi/Arduino 的运动坐标保持原值。
+当前装配下，整屏默认再旋转 180°，输出 `(x,y)` 映射为 `(63-x,95-y)`，包括数字与状态条；上段是旋转前的逻辑布局。可用 `--rotation 0` 直接核对级联第1、2、3块，或显式 `--rotation 180` 固定运行方向。只转换最终像素，传给 Pi/Arduino 的运动坐标保持原值。
 
-用户确认以蓝色状态边为下方观察时，机构回零点在左下角，X 增加向右、Y 增加向上。手动工具缩略图先按这一约定映射（完整画布的逻辑 `(0,0)` 对应像素 `(2,56)`），再整体旋转。MOVE 为绝对毫米坐标；起点、目标、差值和速度会在命令发送前显示，实际距离仍须实测。
+用户确认以蓝色状态边为下方观察时，机构回零点在左下角，X 增加向右、Y 增加向上。手动工具缩略图先按这一约定映射（完整画布的逻辑 `(0,0)` 对应像素 `(2,88)`），再整体旋转，使原点落在级联第1块。MOVE 为绝对毫米坐标；起点、目标、差值和速度会在命令发送前显示，实际距离仍须实测。
 
 完成[实机表](HARDWARE_COMMISSIONING_ZH.md)的角度、方向、距离、限位、相机标定后，人工启用Pi deployed配置allow_network_commands并重启，再启动：
 
@@ -956,7 +956,7 @@ id tabletop-os
 | 控制TCP NDJSON，图像UDP二进制 | 动作可靠有序、调试方便；旧画面丢弃保持低延迟 | 无认证/TLS和持久exactly-once；不是通用跨公网安全方案 |
 | 单动作、单串口任务、分阶段等待 | 易追踪和停止，避免旧动作排长队 | 两段移动与servo串行带来延迟；无多棋子调度/并行动作 |
 | 视觉独立进程、网络独立线程 | 相机/推理阻塞可隔离，主循环故障不能被I/O心跳掩盖 | 进程拷贝/队列有开销，异常相机退出仍需现场验证 |
-| 最终RGB在PC合成，Pi只输出 | 游戏视觉和硬件映射分开，便于扩展 | 每秒固定像素带宽；当前仅64×64，无压缩/自适应分辨率 |
+| 最终RGB在PC合成，Pi只输出 | 游戏视觉和硬件映射分开，便于扩展 | 每秒固定像素带宽；当前仅64×96，无压缩/自适应分辨率 |
 | 观测验证后才提交位置 | 能区分执行器完成和棋子掉队 | 依赖标定和标签可见性；无法证明未观测时的物理真值 |
 | 共享默认标定锁、R=0、默认Pi运动关闭 | 已知现场约束直接体现在代码中；本机端点单独保存 | 仍需验证稳定时间、安全间距与物理急停，不能宣称通用机械安全保证 |
 

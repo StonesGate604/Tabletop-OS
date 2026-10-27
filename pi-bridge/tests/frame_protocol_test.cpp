@@ -27,7 +27,7 @@ std::vector<std::vector<std::uint8_t>> Packets(const std::vector<std::uint8_t>& 
     std::vector<std::uint8_t> packet(kFrameHeaderBytes + length);
     std::copy_n("TOSF", 4, packet.begin());
     packet[4] = 1;
-    Put16(packet, 6, 64); Put16(packet, 8, 64);
+    Put16(packet, 6, kFrameWidth); Put16(packet, 8, kFrameHeight);
     Put32(packet, 10, session); Put32(packet, 14, id);
     Put16(packet, 18, static_cast<std::uint16_t>(i));
     Put16(packet, 20, static_cast<std::uint16_t>(kFrameChunks));

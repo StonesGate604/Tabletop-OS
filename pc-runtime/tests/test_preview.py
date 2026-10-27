@@ -4,6 +4,7 @@ from pathlib import Path
 import unittest
 
 from tabletop_os.config import InteractionConfig
+from tabletop_os.frame_protocol import HEIGHT, WIDTH
 from tabletop_os.model import InputSample, Observation, Point
 from tabletop_os.preview import SelectionPreview
 
@@ -159,7 +160,7 @@ class SelectionPreviewTests(unittest.TestCase):
         self.assertEqual(self.preview.cached_ids,frozenset({7}))
 
     def test_hand_loss_and_outside_cancel_and_require_rearm(self):
-        for position in (None, Point(-1,25), Point(64,25)):
+        for position in (None, Point(-1,25), Point(WIDTH,25), Point(25,HEIGHT)):
             with self.subTest(position=position):
                 self.preview = SelectionPreview(InteractionConfig())
                 self.select()
@@ -191,7 +192,7 @@ class CombinedRenderTests(unittest.TestCase):
         spec.loader.exec_module(module)
         tags = (Observation(7,Point(10,12),1),Observation(8,Point(45,40),1))
         def image(cached_ids):
-            return np.frombuffer(module.pointer_frame(None,0,False,tags=tags,cached_ids=cached_ids),dtype=np.uint8).reshape(64,64,3)
+            return np.frombuffer(module.pointer_frame(None,0,False,tags=tags,cached_ids=cached_ids),dtype=np.uint8).reshape(HEIGHT,WIDTH,3)
         live, held = image(()), image({7})
         self.assertGreater(held[10,8,1],0)
         self.assertTrue(np.array_equal(held,live))
@@ -207,7 +208,7 @@ class CombinedRenderTests(unittest.TestCase):
         tags = (Observation(7,Point(10,12),1),Observation(8,Point(45,40),1))
         fields = dict(tags=tags,selected_id=7,target=Point(30,35),confirmed=True)
         def image(rotation,flip):
-            return np.frombuffer(module.pointer_frame(Point(20,22),rotation,flip,**fields),dtype=np.uint8).reshape(64,64,3)
+            return np.frombuffer(module.pointer_frame(Point(20,22),rotation,flip,**fields),dtype=np.uint8).reshape(HEIGHT,WIDTH,3)
         original = image(0,False)
         self.assertTrue(np.array_equal(image(0,True),original[:,::-1]))
         self.assertTrue(np.array_equal(image(180,False),original[::-1,::-1]))

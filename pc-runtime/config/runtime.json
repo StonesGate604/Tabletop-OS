@@ -1,5 +1,5 @@
 {
-  "board": {"width_mm":298,"height_mm":466,"margin_mm":2,"width_px":64,"height_px":64,"flip_x":false,"flip_y":false},
+  "board": {"width_mm":298,"height_mm":466,"margin_mm":2,"width_px":64,"height_px":96,"flip_x":false,"flip_y":false},
   "interaction": {"piece_id":0,"initial_x_mm":80,"initial_y_mm":100,"selection_radius_mm":22,"observation_timeout_ms":500,"input_timeout_ms":250,"pinch_on":0.25,"pinch_off":0.4,"debounce_ms":60,"speed_mm_s":10,"command_timeout_s":90,"verification_timeout_s":5,"verification_tolerance_mm":5,"verification_samples":3},
   "render": {"fps":60,"cursor_radius_px":4,"cursor_green":140,"cursor_blue":255,"trail_blue":220,"trail_lifetime_ms":1500,"trail_max_points":128,"trail_min_step_mm":0.25},
   "network": {"host":"127.0.0.1","control_port":7420,"frame_port":7422,"heartbeat_ms":400,"reconnect_ms":1000,"response_timeout_ms":1500},

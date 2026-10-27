@@ -13,7 +13,10 @@ def run_window(runtime, camera: bool):
     root = tk.Tk()
     root.title("Tabletop OS V0.1 — "+("SIMULATION" if runtime.simulate else "HARDWARE"))
     root.configure(bg="#10151d")
-    canvas = tk.Canvas(root, width=512, height=512, bg="black", highlightthickness=0)
+    canvas_width = runtime.config.board.width_px * 8
+    canvas_height = runtime.config.board.height_px * 8
+    canvas = tk.Canvas(root, width=canvas_width, height=canvas_height,
+                       bg="black", highlightthickness=0)
     canvas.grid(row=0, column=0, rowspan=3, padx=16, pady=16)
     image_item = canvas.create_image(0, 0, anchor="nw")
     panel = ttk.Frame(root, padding=16)
@@ -38,7 +41,8 @@ def run_window(runtime, camera: bool):
     mouse = {"position": None, "down": False}
     def pointer(event):
         b = runtime.config.board
-        x, y = event.x/512*b.width_mm, event.y/512*b.height_mm
+        x = event.x/canvas_width*b.width_mm
+        y = event.y/canvas_height*b.height_mm
         if b.flip_x:
             x = b.width_mm-x
         if b.flip_y:
@@ -84,7 +88,8 @@ def run_window(runtime, camera: bool):
             sample = InputSample(mouse["position"], 0.1 if mouse["down"] else 0.9, now)
         try:
             rgb = runtime.tick(sample, observations, now)
-            image = tk.PhotoImage(data=b"P6\n64 64\n255\n"+rgb, format="PPM").zoom(8)
+            header = f"P6\n{runtime.config.board.width_px} {runtime.config.board.height_px}\n255\n".encode()
+            image = tk.PhotoImage(data=header+rgb, format="PPM").zoom(8)
             canvas.image = image
             canvas.itemconfigure(image_item, image=image)
             c, s = runtime.controller, runtime.device.snapshot()

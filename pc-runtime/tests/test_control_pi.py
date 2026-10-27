@@ -10,6 +10,8 @@ import threading
 import time
 import unittest
 
+from tabletop_os.frame_protocol import FRAME_BYTES, HEIGHT, WIDTH
+
 spec = importlib.util.spec_from_file_location(
     "control_pi", Path(__file__).resolve().parents[1] / "tools/control_pi.py")
 control = importlib.util.module_from_spec(spec)
@@ -192,21 +194,23 @@ class ManualControlTests(unittest.TestCase):
         with Bridge() as b:
             control.run(args(b, "panel-test"))
         self.assertGreater(len(b.frames), 1)
-        self.assertTrue(all(not any(frame[64 * 32 * 3:]) for frame in b.frames))
+        self.assertTrue(all(not any(frame[WIDTH * 32 * 3:]) for frame in b.frames))
         self.assertTrue(all(not any(frame[::3]) for frame in b.frames))
         self.assertFalse(any(m["type"].startswith("motion.") for m in b.requests))
 
-    def test_full_panel_test_streams_both_halves_and_bottom_bar_without_motion(self):
+    def test_full_panel_test_streams_all_three_panels_and_bottom_bar_without_motion(self):
         with Bridge() as b:
             options = args(b, "panel-test")
             options.display_all = True
             control.run(options)
         self.assertGreater(len(b.frames), 1)
         for pixels in b.frames:
-            self.assertTrue(any(pixels[:64 * 32 * 3]))
-            self.assertTrue(any(pixels[64 * 32 * 3:]))
+            panel_bytes = WIDTH * 32 * 3
+            self.assertTrue(any(pixels[:panel_bytes]))
+            self.assertTrue(any(pixels[panel_bytes:panel_bytes * 2]))
+            self.assertTrue(any(pixels[panel_bytes * 2:]))
             self.assertFalse(any(pixels[::3]))
-            # Full display defaults to 180 degrees: y=60 becomes y=3.
+            # Full display defaults to 180 degrees: y=HEIGHT-4 becomes y=3.
             offset = (3 * 64 + 60) * 3
             self.assertEqual(pixels[offset:offset + 3], bytes((0, 0, 160)))
         self.assertFalse(any(m["type"].startswith("motion.") for m in b.requests))
@@ -227,7 +231,7 @@ class ManualControlTests(unittest.TestCase):
         kinds = [m["type"] for m in b.requests]
         self.assertLess(kinds.index("display.open"), kinds.index("motion.home"))
         self.assertGreater(len(b.frames), 10)
-        self.assertTrue(all(not any(frame[64 * 32 * 3:]) for frame in b.frames))
+        self.assertTrue(all(not any(frame[WIDTH * 32 * 3:]) for frame in b.frames))
 
     def test_display_refusal_prevents_motion(self):
         with Bridge(reject_display=True) as b:
@@ -254,8 +258,8 @@ class FirstPanelRenderTests(unittest.TestCase):
         panel = control.PanelDisplay("127.0.0.1", 9, test=True, rotation=180)
         try:
             pixels = panel.render(10)
-            self.assertTrue(any(pixels[:64 * 32 * 3]))
-            self.assertFalse(any(pixels[64 * 32 * 3:]))
+            self.assertTrue(any(pixels[:WIDTH * 32 * 3]))
+            self.assertFalse(any(pixels[WIDTH * 32 * 3:]))
         finally:
             panel.close()
 
@@ -265,12 +269,12 @@ class FirstPanelRenderTests(unittest.TestCase):
         self.assertEqual(control.PanelDisplay.point(1000, 1000), (61, 2))
 
     def test_full_display_home_is_bottom_left_and_positive_axes_are_right_up(self):
-        self.assertEqual(control.PanelDisplay.point(0, 0, 64), (2, 56))
-        self.assertEqual(control.PanelDisplay.point(298, 0, 64), (61, 56))
-        self.assertEqual(control.PanelDisplay.point(0, 466, 64), (2, 2))
-        start = control.PanelDisplay.point(20, 20, 64)
-        right = control.PanelDisplay.point(40, 20, 64)
-        up = control.PanelDisplay.point(20, 40, 64)
+        self.assertEqual(control.PanelDisplay.point(0, 0, HEIGHT), (2, 88))
+        self.assertEqual(control.PanelDisplay.point(298, 0, HEIGHT), (61, 88))
+        self.assertEqual(control.PanelDisplay.point(0, 466, HEIGHT), (2, 2))
+        start = control.PanelDisplay.point(20, 20, HEIGHT)
+        right = control.PanelDisplay.point(40, 20, HEIGHT)
+        up = control.PanelDisplay.point(20, 40, HEIGHT)
         self.assertGreater(right[0], start[0])
         self.assertEqual(right[1], start[1])
         self.assertEqual(up[0], start[0])
@@ -280,9 +284,9 @@ class FirstPanelRenderTests(unittest.TestCase):
         panel = control.PanelDisplay("127.0.0.1", 9, test=True)
         try:
             pixels = panel.render(10)
-            self.assertEqual(len(pixels), 64 * 64 * 3)
-            self.assertTrue(any(pixels[:64 * 32 * 3]))
-            self.assertFalse(any(pixels[64 * 32 * 3:]))
+            self.assertEqual(len(pixels), FRAME_BYTES)
+            self.assertTrue(any(pixels[:WIDTH * 32 * 3]))
+            self.assertFalse(any(pixels[WIDTH * 32 * 3:]))
             self.assertFalse(any(pixels[::3]))
         finally:
             panel.close()
@@ -295,12 +299,30 @@ class FirstPanelRenderTests(unittest.TestCase):
             panel.status_at = 10
             pixels = panel.render(10)
             def at(x, y):
-                offset = (y * 64 + x) * 3
+                offset = (y * WIDTH + x) * 3
                 return pixels[offset:offset + 3]
-            self.assertEqual(at(3, 60), bytes((0, 0, 160)))
+            self.assertEqual(at(3, HEIGHT - 4), bytes((0, 0, 160)))
             self.assertEqual(at(3, 28), bytes((0, 0, 0)))
-            self.assertEqual(control.PanelDisplay.point(298, 466, 64), (61, 2))
+            self.assertEqual(control.PanelDisplay.point(298, 466, HEIGHT), (61, 2))
             self.assertFalse(any(pixels[::3]))
+        finally:
+            panel.close()
+
+    def test_rotated_full_display_places_mechanical_home_on_first_panel(self):
+        panel = control.PanelDisplay("127.0.0.1", 9, full=True, rotation=180)
+        try:
+            panel.status = {"fault": "NONE", "ready": True, "telemetry_age_ms": 0,
+                            "referenced": True, "mode": "IDLE",
+                            "actual_x_mm": 0, "actual_y_mm": 0}
+            panel.status_at = 10
+            pixels = panel.render(10)
+
+            def at(x, y):
+                offset = (y * WIDTH + x) * 3
+                return pixels[offset:offset + 3]
+
+            self.assertEqual(at(61, 7), bytes((0, 180, 220)))
+            self.assertLess(7, 32)
         finally:
             panel.close()
 

@@ -2,7 +2,7 @@
 
 Pi Bridge v0.1 负责 TCP/UDP、Arduino 串口、安全联锁以及 HUB75 输出。默认 `display.mode=frames` 显示 PC 最终 RGB 帧；内置圆形光标和蓝色拖影仅在 `diagnostic` 模式用于硬件链路诊断。
 
-TCP 7420 负责控制与显示会话，UDP 7422 使用 TOSF v1 重组 64×64 RGB888；UDP 7421 保留旧诊断光标。详见[协议](../protocol/README.md)和[技术说明书](../docs/TABLETOP_OS_TECHNICAL_GUIDE_ZH.md)。
+TCP 7420 负责控制与显示会话，UDP 7422 使用 TOSF v1 重组 64×96 RGB888。三块 64×32 面板沿机械 Y 方向串联，第一块靠近机械 `(0,0)`；UDP 7421 保留旧诊断光标。详见[协议](../protocol/README.md)和[技术说明书](../docs/TABLETOP_OS_TECHNICAL_GUIDE_ZH.md)。
 
 新版 HOME/MOVE/SERVO 要求正式固件 CONFIG 输出 LAST_TASK_ID；先更新 Uno 固件，避免旧行为和编号不同步。PC 另有舵机未标定锁，Pi 默认网络运动锁仍保留。
 
@@ -28,7 +28,7 @@ sudo systemctl disable --now tessera-bridge
 首次启动前至少要修改：
 
 - `serial.device`：推荐 `/dev/serial/by-id/...`，不要长期依赖 `/dev/ttyACM0`；
-- `display.pixel_mapper`：根据两块真实面板的排列和方向校准；
+- `display.pixel_mapper`：根据三块真实面板的排列和方向校准；当前默认级联第1块靠近机械 `(0,0)`，随后是第2、3块；
 - `display.panel_type`：默认空字符串，不发送特殊初始化；如面板需要 FM6127 初始化，填写 `"FM6127"`。该字段需要支持它的新版 Pi Bridge，旧程序只改 JSON 不会生效；
 - `motion.allow_network_commands`：保持 `false`，直到完成全部机构安全验证。
 

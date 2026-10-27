@@ -161,7 +161,7 @@ Use a small message protocol between modules. This keeps hardware, game logic, a
 
 Before building the full authoring environment, complete one end-to-end interaction with a single known magnetic piece:
 
-1. Whenever the hand is tracked inside the active table area, the PC runtime draws a circular cursor into the final 64×64 frame and sends it to the Pi for HUB75 output.
+1. Whenever the hand is tracked inside the active table area, the PC runtime draws a circular cursor into the final 64×96 frame and sends it to the Pi for HUB75 output.
 2. The user places the hand above the piece and makes a grab gesture to select it; grabbing changes the cursor style but does not move the mechanism.
 3. Hand movement continuously updates both the cursor and target preview in the PC-composited frame; the mechanism does not chase the hand.
 4. A release or explicit confirmation gesture commits one numbered `MOVE_TO` task.

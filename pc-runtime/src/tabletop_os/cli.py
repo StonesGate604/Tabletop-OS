@@ -4,6 +4,7 @@ import json
 import logging
 from pathlib import Path
 from .config import load_config
+from .frame_protocol import HEIGHT, WIDTH
 from .interaction import Phase
 from .model import InputSample, Point
 from .runtime import Runtime
@@ -39,7 +40,8 @@ def run_demo(runtime: Runtime, duration: float, frame_path: Path | None = None) 
             if runtime.controller.completed_moves or runtime.controller.phase == Phase.ERROR:
                 if frame_path:
                     frame_path.parent.mkdir(parents=True, exist_ok=True)
-                    frame_path.write_bytes(b"P6\n64 64\n255\n"+runtime.rgb)
+                    frame_path.write_bytes(
+                        f"P6\n{WIDTH} {HEIGHT}\n255\n".encode() + runtime.rgb)
                 break
         c = runtime.controller
         return {"simulation": True, "completed_moves": c.completed_moves, "phase": c.phase.value,

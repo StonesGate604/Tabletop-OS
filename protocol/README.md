@@ -5,7 +5,7 @@
 | 通道 | 默认配置 | 用途 |
 | --- | --- | --- |
 | TCP 7420 NDJSON | network.control_port | 心跳、状态、显示会话、单次运动与舵机命令 |
-| UDP 7422 TOSF | network.frame_port | PC 最终 64×64 RGB888 帧；CRC32、会话、乱序组帧与过期丢弃 |
+| UDP 7422 TOSF | network.frame_port | PC 最终 64×96 RGB888 帧；CRC32、会话、乱序组帧与过期丢弃 |
 | UDP 7421 JSON | network.cursor_port | 保留的光标诊断；只在 display.mode=diagnostic 绘制 |
 | USB Serial 115200 8N1 | serial.baud/device | Pi 与正式 Arduino 固件的 ASCII 命令/事件 |
 
@@ -30,7 +30,7 @@
 
 ## TOSF
 
-先通过有效租约的 TCP display.open 绑定非零 uint32 session，收到 display.opened 后再发数据。26字节大端头 `!4sBBHHIIHHI`，随后最多1200字节像素；一帧12288字节、11块，末块288字节。完整帧 CRC32 同 zlib.crc32。默认100ms组帧、250ms无新完整帧清屏。旧帧不重传，断线清会话，非法/不完整帧不能显示。session不是鉴权。
+先通过有效租约的 TCP display.open 绑定非零 uint32 session，收到 display.opened 后再发数据。26字节大端头 `!4sBBHHIIHHI`，随后最多1200字节像素；一帧18432字节、16块，末块432字节。完整帧 CRC32 同 zlib.crc32。默认100ms组帧、250ms无新完整帧清屏。旧帧不重传，断线清会话，非法/不完整帧不能显示。session不是鉴权。
 
 Python发送：pc-runtime/src/tabletop_os/frame_protocol.py；C++接收：pi-bridge/src/frame_protocol.cpp、frame_receiver.cpp。
 

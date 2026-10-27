@@ -13,7 +13,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT/'pc-runtime/src'))
-from tabletop_os.frame_protocol import encode_frame
+from tabletop_os.frame_protocol import encode_frame, FRAME_BYTES
 from tabletop_os.config import NetworkConfig
 from tabletop_os.device import NetworkDevice
 
@@ -122,7 +122,7 @@ class BridgeTests(unittest.TestCase):
         self.heartbeat()
         self.send('display.open',session=123)
         self.assertEqual(self.read('display.opened')['session'],123)
-        packets=encode_frame(bytes(i%251 for i in range(12288)),123,77)
+        packets=encode_frame(bytes(i%251 for i in range(FRAME_BYTES)),123,77)
         with socket.socket(socket.AF_INET,socket.SOCK_DGRAM) as udp:
             for packet in reversed(packets[:-1]):
                 udp.sendto(packet,('127.0.0.1',self.config['network']['frame_port']))
@@ -150,7 +150,7 @@ class BridgeTests(unittest.TestCase):
             while not device.snapshot().received_at and time.monotonic()<until:
                 time.sleep(.02)
             self.assertGreater(device.snapshot().received_at,0)
-            device.publish(bytes(12288))
+            device.publish(bytes(FRAME_BYTES))
             time.sleep(.5)
             self.assertTrue(device.snapshot().lease_valid)
             self.assertGreater(device.display_status().get('frame_seq',0),0)

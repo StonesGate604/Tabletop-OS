@@ -13,7 +13,7 @@ class BoardConfig:
     height_mm: float = 466
     margin_mm: float = 2
     width_px: int = 64
-    height_px: int = 64
+    height_px: int = 96
     flip_x: bool = False
     flip_y: bool = False
 
@@ -131,8 +131,8 @@ def load_config(path: str | Path) -> RuntimeConfig:
     b, i, r, n, c = result.board, result.interaction, result.render, result.network, result.camera
     if not (0 < b.width_mm <= 10000 and 0 < b.height_mm <= 10000 and
             0 <= b.margin_mm < min(b.width_mm, b.height_mm)/2 and
-            b.width_px == 64 and b.height_px == 64):
-        raise ValueError("V0.1 requires a valid board and a 64x64 frame")
+            b.width_px == 64 and b.height_px == 96):
+        raise ValueError("V0.1 requires a valid board and a 64x96 frame")
     if not (0 < i.pinch_on < i.pinch_off < 2 and i.debounce_ms >= 0 and
             0.5 <= i.speed_mm_s <= 50 and i.verification_samples >= 1 and
             i.command_timeout_s > 0 and i.verification_timeout_s > 0 and

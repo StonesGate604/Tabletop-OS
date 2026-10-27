@@ -4,6 +4,7 @@ import unittest
 
 from tabletop_os.calibration import Calibration
 from tabletop_os.config import RuntimeConfig
+from tabletop_os.frame_protocol import FRAME_BYTES
 from tabletop_os.model import DeviceSnapshot, Observation, Point
 from tabletop_os.system.session import MotionOptions, TabletopSystem
 from tabletop_os.system.tracking import TagMemory
@@ -50,8 +51,8 @@ class SystemServicesTests(unittest.TestCase):
     def setUp(self):
         self.config = RuntimeConfig()
         self.device = FakeDevice()
-        self.display = Calibration(640,480,63,63,((1,0,0),(0,1,0),(0,0,1)))
-        self.mechanical = Calibration(640,480,342,515,((2,0,0),(0,3,0),(0,0,1)))
+        self.display = Calibration(640,480,63,95,((1,0,0),(0,1,0),(0,0,1)))
+        self.mechanical = Calibration(640,480,298,466,((2,0,0),(0,3,0),(0,0,1)))
         self.display_tag = Observation(7,Point(10,10),1)
         self.mechanical_tag = Observation(7,Point(20,30),1)
 
@@ -138,7 +139,7 @@ class SystemServicesTests(unittest.TestCase):
         other.close()
         self.assertTrue(self.device.closed)
         self.assertEqual(sum(kind == 'motion.stop' for kind,_,_ in self.device.requests),1)
-        self.assertEqual(self.device.frames[-1],bytes(64*64*3))
+        self.assertEqual(self.device.frames[-1],bytes(FRAME_BYTES))
 
     def test_memory_clear_removes_cached_positions_and_duplicate_identity_state(self):
         memory = TagMemory(self.config.interaction)

@@ -58,7 +58,7 @@ struct DisplayConfig {
   bool enabled = true;
   int rows = 32;
   int cols = 64;
-  int chain_length = 2;
+  int chain_length = 3;
   int parallel = 1;
   int brightness = 30;
   int pwm_bits = 11;
@@ -66,10 +66,10 @@ struct DisplayConfig {
   bool disable_hardware_pulsing = false;
   int render_fps = 60;
   int expected_width = 64;
-  int expected_height = 64;
+  int expected_height = 96;
   std::string hardware_mapping = "regular";
   std::string panel_type;
-  std::string pixel_mapper = "Remap:64,64|0,0n|0,32n";
+  std::string pixel_mapper = "Remap:64,96|0,0n|0,32n|0,64n";
   bool drop_privileges = true;
   std::string drop_user = "tabletop-os";
   std::string drop_group = "tabletop-os";

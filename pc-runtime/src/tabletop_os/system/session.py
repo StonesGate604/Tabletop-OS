@@ -5,6 +5,7 @@ import math
 from ..constant_engage import ConstantEngageDrag
 from ..pick_place import PickPlaceDrag
 from ..device import NetworkDevice
+from ..frame_protocol import FRAME_BYTES
 from ..model import DeviceSnapshot, Point
 from .coordinates import project_between
 from .display import pointer_frame
@@ -191,7 +192,7 @@ class TabletopSystem:
             self._mover.cancel('WINDOW_CLOSED')
         if self._started:
             try:
-                self._device.publish(bytes(64*64*3))
+                self._device.publish(bytes(FRAME_BYTES))
             finally:
                 self._device.close()
         self._mechanical_observations = ()

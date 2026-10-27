@@ -14,11 +14,11 @@ import time
 import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-from tabletop_os.frame_protocol import encode_frame, FRAME_BYTES
+from tabletop_os.frame_protocol import encode_frame, FRAME_BYTES, HEIGHT, WIDTH
 
 
 class PanelDisplay:
-    """Diagnostic map on one 64x32 panel or the complete 64x64 display."""
+    """Diagnostic map on one 64x32 panel or the complete 64x96 display."""
     def __init__(self, host, port, test=False, full=False, rotation=0):
         if rotation not in (0, 180):
             raise ValueError("显示旋转角度须为 0 或 180")
@@ -34,7 +34,7 @@ class PanelDisplay:
         self.requested = self.opened = self.received = False
         self.next_frame = 0
         self.test = test
-        self.height = 64 if full else 32
+        self.height = HEIGHT if full else 32
         self.status = {}
         self.status_at = 0
         self.trail = deque(maxlen=128)
@@ -67,10 +67,10 @@ class PanelDisplay:
         rgb = bytearray(FRAME_BYTES)
 
         def pixel(x, y, green, blue):
-            if 0 <= x < 64 and 0 <= y < self.height:
+            if 0 <= x < WIDTH and 0 <= y < self.height:
                 if self.rotation == 180:
-                    x, y = 63 - x, self.height - 1 - y
-                offset = (y * 64 + x) * 3
+                    x, y = WIDTH - 1 - x, self.height - 1 - y
+                offset = (y * WIDTH + x) * 3
                 rgb[offset:offset + 3] = bytes((0, green, blue))
 
         def line(p0, p1, green, blue):
@@ -80,12 +80,12 @@ class PanelDisplay:
                 pixel(round(p0[0] + dx * step / steps),
                       round(p0[1] + dy * step / steps), green, blue)
 
-        for x in range(64):
+        for x in range(WIDTH):
             pixel(x, 0, 20, 35)
             pixel(x, self.height - 1, 20, 35)
         for y in range(self.height):
             pixel(0, y, 20, 35)
-            pixel(63, y, 20, 35)
+            pixel(WIDTH - 1, y, 20, 35)
         if self.test:
             # Large "1", plus green left and blue right corner markers.
             for y in range(6, 26):
@@ -96,18 +96,24 @@ class PanelDisplay:
             for y in range(2, 6):
                 for x in range(2, 6):
                     pixel(x, y, 150, 0)
-                    pixel(63 - x, y, 0, 180)
-            if self.height == 64:
+                    pixel(WIDTH - 1 - x, y, 0, 180)
+            if self.height >= 64:
                 # A "2" on the lower panel distinguishes panel order.
                 line((25, 38), (38, 38), 150, 180)
                 line((38, 38), (38, 45), 150, 180)
                 line((38, 45), (25, 53), 150, 180)
                 line((25, 53), (25, 57), 150, 180)
                 line((25, 57), (38, 57), 150, 180)
-                line((3, 60), (60, 60), 0, 160)
+            if self.height >= 96:
+                # A "3" on the third panel completes the three-panel order test.
+                line((25, 70), (38, 70), 150, 180)
+                line((38, 70), (38, 89), 150, 180)
+                line((25, 79), (38, 79), 150, 180)
+                line((25, 89), (38, 89), 150, 180)
+            line((3, self.height - 4), (60, self.height - 4), 0, 160)
             return bytes(rgb)
 
-        for x in range(12, 63, 12):
+        for x in range(12, WIDTH - 1, 12):
             for y in range(2, self.height - 7):
                 pixel(x, y, 3, 10)
         for y in range(6, self.height - 7, 6):
@@ -293,10 +299,10 @@ def run(args):
         if args.command == "panel-test":
             started_at = None
             if full_display:
-                print("整屏测试：数字 1、2 和蓝条已整体旋转 180°。" if rotation else
-                      "整屏测试：上半显示 1，下半显示 2，蓝条位于整屏最下方。", flush=True)
+                print("整屏测试：数字 1、2、3 和蓝条已整体旋转 180°。" if rotation else
+                      "整屏测试：三块板依次显示 1、2、3，蓝条位于整屏最下方。", flush=True)
             else:
-                print("第一块灯板测试：应显示数字 1，第二块保持黑屏。", flush=True)
+                print("第一块灯板测试：应显示数字 1，第二、三块保持黑屏。", flush=True)
             for msg in session.messages(args.seconds + 10):
                 if session.panel.received:
                     if started_at is None:
@@ -374,7 +380,7 @@ def main(argv=None):
     parser.add_argument("--port", type=int, default=7420)
     display_options = parser.add_mutually_exclusive_group()
     display_options.add_argument("--display-first", action="store_true", help="只在第一块灯板显示")
-    display_options.add_argument("--display-all", action="store_true", help="使用两块拼接的完整 64×64 灯板")
+    display_options.add_argument("--display-all", action="store_true", help="使用三块拼接的完整 64×96 灯板")
     parser.add_argument("--rotation", type=int, choices=(0, 180), default=None,
                         help="仅旋转显示；整屏默认 180°，单块默认 0°")
     parser.add_argument("--frame-port", type=int, default=7422)

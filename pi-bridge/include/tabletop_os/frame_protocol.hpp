@@ -8,8 +8,10 @@
 
 namespace tabletop_os {
 
-// TOSF v1: big endian, fixed RGB888 64x64; matches PC frame_protocol.py.
-constexpr std::size_t kFrameBytes = 64 * 64 * 3;
+// TOSF v1: big endian, fixed RGB888 64x96; matches PC frame_protocol.py.
+constexpr std::uint16_t kFrameWidth = 64;
+constexpr std::uint16_t kFrameHeight = 96;
+constexpr std::size_t kFrameBytes = kFrameWidth * kFrameHeight * 3;
 constexpr std::size_t kFrameChunkBytes = 1200;
 constexpr std::size_t kFrameChunks = (kFrameBytes + kFrameChunkBytes - 1) / kFrameChunkBytes;
 constexpr std::size_t kFrameHeaderBytes = 26;

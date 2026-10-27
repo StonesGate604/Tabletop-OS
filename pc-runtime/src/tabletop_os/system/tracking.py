@@ -1,9 +1,12 @@
 """Last-observed tag positions, kept separate from interaction state."""
 import math
 
+from ..frame_protocol import HEIGHT, WIDTH
+
 
 def in_display(position):
-    return position is not None and position.finite() and 0 <= position.x <= 63 and 0 <= position.y <= 63
+    return (position is not None and position.finite() and
+            0 <= position.x <= WIDTH - 1 and 0 <= position.y <= HEIGHT - 1)
 
 
 class TagMemory:

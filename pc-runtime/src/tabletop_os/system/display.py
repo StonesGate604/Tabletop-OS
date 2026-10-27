@@ -1,4 +1,5 @@
 """Shared LED primitives; no device access or application decisions."""
+from ..frame_protocol import HEIGHT, WIDTH
 from .tracking import in_display
 
 
@@ -8,7 +9,7 @@ def pointer_frame(position, rotation=180, flip_x=False, tags=(), selected_id=Non
     import cv2
     import numpy as np
 
-    rgb = np.zeros((64, 64, 3), dtype=np.uint8)
+    rgb = np.zeros((HEIGHT, WIDTH, 3), dtype=np.uint8)
 
     def pixel(point):
         return round(point.x), round(point.y)

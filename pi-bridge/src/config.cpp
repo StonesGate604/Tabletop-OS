@@ -1,4 +1,5 @@
 #include "tabletop_os/config.hpp"
+#include "tabletop_os/frame_protocol.hpp"
 
 #include <algorithm>
 #include <fstream>
@@ -69,7 +70,9 @@ void Validate(const AppConfig& config) {
     throw std::runtime_error("Invalid frame port");
   }
   if ((config.display.mode != "frames" && config.display.mode != "diagnostic") ||
-      (config.display.mode == "frames" && (config.display.expected_width != 64 || config.display.expected_height != 64)) ||
+      (config.display.mode == "frames" &&
+       (config.display.expected_width != kFrameWidth ||
+        config.display.expected_height != kFrameHeight)) ||
       config.display.frame_timeout_ms < 50 || config.display.assembly_timeout_ms < 10 ||
       config.display.assembly_timeout_ms > config.display.frame_timeout_ms ||
       config.motion.command_timeout_ms < 1000 || config.motion.stop_timeout_ms < 100 ||

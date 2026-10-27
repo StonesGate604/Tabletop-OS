@@ -6,6 +6,7 @@ import time
 from .apps.gesture_drag import GestureDragApp
 from .calibration import Calibration, from_corners
 from .config import BoardConfig
+from .frame_protocol import HEIGHT, WIDTH
 from .system.camera import CameraSession
 from .system.session import MotionOptions, TabletopSystem
 
@@ -73,7 +74,7 @@ def run_gesture_window(config, options):
         cv2.setMouseCallback(title, click)
         if options.reuse_map:
             mapping = Calibration.load(config.base_dir / 'local-display-map.json',
-                                       BoardConfig(width_mm=63, height_mm=63))
+                                       BoardConfig(width_mm=WIDTH - 1, height_mm=HEIGHT - 1))
             camera.validate_calibration(mapping)
             system = start_system(mapping)
         last_report = 0.0
@@ -98,15 +99,16 @@ def run_gesture_window(config, options):
                     label = f'ID {tag.piece_id} HOLD {now-tag.timestamp:.1f}s' if held else f'ID {tag.piece_id}'
                     cv2.rectangle(display, (x-12, y-12), (x+12, y+12), (0, 255, 0), 2)
                     cv2.putText(display, label, (x+14, y), cv2.FONT_HERSHEY_SIMPLEX, .55, (0, 255, 0), 1)
-                led = np.frombuffer(rgb, dtype=np.uint8).reshape(64, 64, 3)
+                led = np.frombuffer(rgb, dtype=np.uint8).reshape(HEIGHT, WIDTH, 3)
                 cv2.imshow('LED output preview', cv2.resize(cv2.cvtColor(led, cv2.COLOR_RGB2BGR),
-                           (384, 384), interpolation=cv2.INTER_NEAREST))
+                           (384, 576), interpolation=cv2.INTER_NEAREST))
                 state = system.snapshot()
                 motion = system.motion_view
                 motion_stage = getattr(motion, 'stage', motion.phase)
                 status = system.display_status()
                 position = sample.position
-                inside = position is not None and 0 <= position.x <= 63 and 0 <= position.y <= 63
+                inside = (position is not None and 0 <= position.x <= WIDTH - 1 and
+                          0 <= position.y <= HEIGHT - 1)
                 hand_status = 'IN LED AREA' if inside else 'OUTSIDE LED AREA' if position else 'NO HAND'
                 text = f'Pi: {state.connected} | frame: {status.get("frame_seq", 0)} | {hand_status}'
                 tag_ids = [tag.piece_id for tag in system.tracking.visible_tags]
@@ -170,7 +172,9 @@ def run_gesture_window(config, options):
                     LOG.warning('HOME rejected: %s', exc)
             if key == ord('s') and len(corners) == 4 and mapping is None:
                 try:
-                    chosen = from_corners(corners, camera.size, BoardConfig(width_mm=63, height_mm=63))
+                    chosen = from_corners(
+                        corners, camera.size,
+                        BoardConfig(width_mm=WIDTH - 1, height_mm=HEIGHT - 1))
                     camera.validate_calibration(chosen)
                 except ValueError as exc:
                     LOG.warning('Display mapping rejected: %s', exc)

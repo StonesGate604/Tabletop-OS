@@ -46,7 +46,7 @@ class CameraSessionTests(unittest.TestCase):
         self.enterContext(patch('tabletop_os.system.camera.AprilTagDetector', return_value=self.detector))
         self.session = CameraSession(self.config)
         self.addCleanup(self.session.close)
-        self.mapping = Calibration(20, 10, 63, 63, ((1,0,0),(0,1,0),(0,0,1)))
+        self.mapping = Calibration(20, 10, 63, 95, ((1,0,0),(0,1,0),(0,0,1)))
 
     def test_warmup_frame_is_cropped_once_and_next_reads_share_origin(self):
         self.session.start()
@@ -107,7 +107,7 @@ class CameraSessionTests(unittest.TestCase):
                                  distortion=(0,0,0,0,0))
         with self.assertRaisesRegex(ValueError,'plane-only'):
             self.session.analyze(frame,self.mapping,intrinsics,1)
-        wrong_size = Calibration(21,10,63,63,self.mapping.matrix)
+        wrong_size = Calibration(21,10,63,95,self.mapping.matrix)
         with self.assertRaisesRegex(ValueError,'camera crop'):
             self.session.analyze(frame,wrong_size,now=1)
         self.detector.detect.assert_not_called()

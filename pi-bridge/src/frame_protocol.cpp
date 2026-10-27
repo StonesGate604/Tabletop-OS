@@ -32,7 +32,8 @@ void FrameAssembler::SetSession(std::uint32_t session) {
 std::optional<std::vector<std::uint8_t>> FrameAssembler::Feed(
     const std::uint8_t* data, std::size_t size, Clock::time_point now) {
   if (!data || size < kFrameHeaderBytes || std::memcmp(data, "TOSF", 4) != 0 ||
-      data[4] != 1 || data[5] != 0 || U16(data + 6) != 64 || U16(data + 8) != 64 ||
+      data[4] != 1 || data[5] != 0 || U16(data + 6) != kFrameWidth ||
+      U16(data + 8) != kFrameHeight ||
       session_ == 0 || U32(data + 10) != session_) return std::nullopt;
   const auto id = U32(data + 14);
   const auto index = U16(data + 18);

@@ -29,7 +29,7 @@ class MotionMappingTests(unittest.TestCase):
         self.mechanical = from_corners([(900,700),(900,100),(100,100),(100,700)],size,BoardConfig())
         # The panel covers only the central part of the mechanical workspace.
         self.display = from_corners([(300,250),(700,250),(700,550),(300,550)],size,
-                                    BoardConfig(width_mm=63,height_mm=63))
+                                    BoardConfig(width_mm=63,height_mm=95))
 
     def assert_point(self,actual,expected):
         self.assertAlmostEqual(actual.x,expected.x,places=5)
@@ -38,17 +38,17 @@ class MotionMappingTests(unittest.TestCase):
     def test_panel_corners_map_to_mechanical_subset_with_correct_axes(self):
         cases = ((Point(0,0),Point(223.5,349.5)),
                  (Point(63,0),Point(223.5,116.5)),
-                 (Point(63,63),Point(74.5,116.5)),
-                 (Point(0,63),Point(74.5,349.5)),
-                 (Point(31.5,31.5),Point(149,233)))
+                 (Point(63,95),Point(74.5,116.5)),
+                 (Point(0,95),Point(74.5,349.5)),
+                 (Point(31.5,47.5),Point(149,233)))
         for led,mechanical in cases:
             with self.subTest(led=led):
                 self.assert_point(self.module.project_between(led,self.display,self.mechanical),mechanical)
 
     def test_perspective_mapping_roundtrip_returns_original_led_point(self):
         perspective = from_corners([(280,230),(720,260),(690,570),(320,540)],(1000,800),
-                                   BoardConfig(width_mm=63,height_mm=63))
-        for point in (Point(0,0),Point(12.5,39.5),Point(63,63)):
+                                   BoardConfig(width_mm=63,height_mm=95))
+        for point in (Point(0,0),Point(12.5,39.5),Point(63,95)):
             mm = self.module.project_between(point,perspective,self.mechanical)
             self.assert_point(self.module.project_between(mm,self.mechanical,perspective),point)
 
@@ -65,7 +65,7 @@ class MotionMappingTests(unittest.TestCase):
         self.assert_point(point,Point(12,25))
 
     def test_drag_request_uses_reprojected_millimetres_instead_of_led_pixels(self):
-        led_start,led_target = Point(31.5,31.5),Point(32,32)
+        led_start,led_target = Point(31.5,47.5),Point(32,48)
         mm_start = self.module.project_between(led_start,self.display,self.mechanical)
         mm_target = self.module.project_between(led_target,self.display,self.mechanical)
         device = FakeDevice()
@@ -82,13 +82,13 @@ class MotionMappingTests(unittest.TestCase):
     def test_centered_reachable_area_maps_to_the_correct_physical_led_pixels(self):
         # White light area is 320x480 mm.  The 298x466 mm carriage-centre
         # workspace is inset 11 mm horizontally and 7 mm vertically.
-        display = Calibration(320,480,63,63,
-                              ((63/320,0,0),(0,63/480,0),(0,0,1)))
+        display = Calibration(320,480,63,95,
+                              ((63/320,0,0),(0,95/480,0),(0,0,1)))
         mechanical = Calibration(320,480,298,466,
                                  ((1,0,-11),(0,1,-7),(0,0,1)))
-        cases = ((Point(0,0),Point(11/320*63,7/480*63)),
-                 (Point(149,233),Point(31.5,31.5)),
-                 (Point(298,466),Point(309/320*63,473/480*63)))
+        cases = ((Point(0,0),Point(11/320*63,7/480*95)),
+                 (Point(149,233),Point(31.5,47.5)),
+                 (Point(298,466),Point(309/320*63,473/480*95)))
         for millimetres,pixels in cases:
             with self.subTest(millimetres=millimetres):
                 self.assert_point(self.module.project_between(

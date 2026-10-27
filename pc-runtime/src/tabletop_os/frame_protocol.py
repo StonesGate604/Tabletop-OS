@@ -1,11 +1,12 @@
-"""TOSF v1, fixed 64x64 RGB888, bounded latest-frame UDP assembly."""
+"""TOSF v1, fixed 64x96 RGB888, bounded latest-frame UDP assembly."""
 import math
 import struct
 import zlib
 
 MAGIC = b"TOSF"
 VERSION = 1
-WIDTH = HEIGHT = 64
+WIDTH = 64
+HEIGHT = 96
 FRAME_BYTES = WIDTH * HEIGHT * 3
 CHUNK_BYTES = 1200
 CHUNKS = math.ceil(FRAME_BYTES / CHUNK_BYTES)

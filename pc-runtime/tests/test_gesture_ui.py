@@ -8,6 +8,7 @@ from unittest.mock import Mock, patch
 
 from tabletop_os.calibration import Calibration
 from tabletop_os.config import RuntimeConfig
+from tabletop_os.frame_protocol import FRAME_BYTES
 from tabletop_os.gesture_ui import run_gesture_window
 from tabletop_os.model import DeviceSnapshot, InputSample
 from tabletop_os.system.tracking import TagMemory
@@ -19,7 +20,7 @@ class GestureWindowTests(unittest.TestCase):
         import numpy as np
         self.config = RuntimeConfig()
         self.frame = np.ones((10,20,3),dtype=np.uint8)
-        self.mapping = Calibration(20,10,63,63,((1,0,0),(0,1,0),(0,0,1)))
+        self.mapping = Calibration(20,10,63,95,((1,0,0),(0,1,0),(0,0,1)))
         self.camera = Mock()
         self.camera.size = (20,10)
         self.camera.read.return_value = self.frame
@@ -31,7 +32,7 @@ class GestureWindowTests(unittest.TestCase):
         self.service.motion_view = SimpleNamespace(enabled=False,phase='DISABLED',error='',selected_id=None,target=None)
         self.service.snapshot.return_value = DeviceSnapshot()
         self.service.display_status.return_value = {}
-        self.service.publish.return_value = bytes(64*64*3)
+        self.service.publish.return_value = bytes(FRAME_BYTES)
         self.cv = SimpleNamespace(
             namedWindow=Mock(),setMouseCallback=Mock(),putText=Mock(),imshow=Mock(),
             waitKey=Mock(side_effect=[27]),getWindowProperty=Mock(return_value=1),
