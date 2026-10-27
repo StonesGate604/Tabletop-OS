@@ -40,7 +40,7 @@ class GestureWindowTests(unittest.TestCase):
             FONT_HERSHEY_SIMPLEX=0,COLOR_RGB2BGR=0,INTER_NEAREST=0,EVENT_LBUTTONDOWN=1,
             WND_PROP_VISIBLE=0)
         self.options = SimpleNamespace(
-            constant_engage=False,speed=2,max_drag_mm=0,allow_pickup_offset=False,
+            constant_engage=False,pick_place=False,speed=2,max_drag_mm=0,allow_pickup_offset=False,
             rotation=None,flip_x=None,hold_seconds=0,reuse_map=True)
         self.enterContext(patch.dict('sys.modules',{'cv2':self.cv}))
         self.enterContext(patch('tabletop_os.gesture_ui.CameraSession',return_value=self.camera))
@@ -118,6 +118,14 @@ class GestureWindowTests(unittest.TestCase):
         self.service.cancel.assert_called_once_with()
         self.service.stop.assert_called_once_with()
         self.assertEqual(self.service.publish.call_count,3)
+        self.assert_cleanup()
+
+    def test_pick_place_home_key_uses_system_service(self):
+        self.options.pick_place = True
+        self.cv.waitKey.side_effect = [ord('h'),27]
+        run_gesture_window(self.config,self.options)
+        self.service.home.assert_called_once()
+        self.assertTrue(self.factory.call_args.args[3].pick_place)
         self.assert_cleanup()
 
     def test_four_click_mapping_is_saved_before_starting_one_session(self):

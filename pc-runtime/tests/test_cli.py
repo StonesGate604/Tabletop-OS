@@ -29,19 +29,29 @@ class UnifiedCliTests(unittest.TestCase):
         self.assertEqual(options.app, 'gesture-drag')
         self.assertEqual(options.input, 'camera')
         self.assertFalse(options.constant_engage)
+        self.assertFalse(options.pick_place)
         self.assertFalse(options.allow_pickup_offset)
-        self.assertEqual(options.speed, 2)
+        self.assertEqual(options.speed, 10)
 
     def test_hardware_options_are_explicit_and_forwarded(self):
         result, window, load, _ = self.run_cli([
             '--app','gesture-drag','--config','my-config.json','--reuse-map',
-            '--constant-engage','--allow-pickup-offset','--speed','15'])
+            '--constant-engage','--allow-pickup-offset','--speed','50'])
         self.assertEqual(result, 0)
         load.assert_called_once_with(Path('my-config.json'))
         options = window.call_args.args[1]
         self.assertTrue(options.constant_engage)
         self.assertTrue(options.reuse_map)
-        self.assertEqual(options.speed, 15)
+        self.assertEqual(options.speed, 50)
+
+    def test_calibrated_pick_place_mode_is_forwarded(self):
+        result, window, _, _ = self.run_cli([
+            '--app','gesture-drag','--reuse-map','--pick-place','--speed','45'])
+        self.assertEqual(result, 0)
+        options = window.call_args.args[1]
+        self.assertTrue(options.pick_place)
+        self.assertFalse(options.constant_engage)
+        self.assertEqual(options.speed, 45)
 
     def test_check_config_does_not_open_application_or_devices(self):
         with contextlib.redirect_stdout(io.StringIO()):
@@ -77,8 +87,11 @@ class UnifiedCliTests(unittest.TestCase):
             ['--app','gesture-drag','--simulate'],
             ['--app','gesture-drag','--input','mouse'],
             ['--app','single-piece','--constant-engage'],
+            ['--app','single-piece','--pick-place'],
             ['--app','single-piece','--reuse-map'],
-            ['--speed','nan'], ['--speed','26'], ['--hold-seconds','inf'],
+            ['--pick-place','--allow-pickup-offset'],
+            ['--pick-place','--constant-engage'],
+            ['--speed','nan'], ['--speed','50.1'], ['--hold-seconds','inf'],
             ['--max-drag-mm','-1'],
         ]
         for arguments in cases:

@@ -91,6 +91,21 @@ class SystemServicesTests(unittest.TestCase):
         system.update((self.display_tag,),(self.mechanical_tag,),1.1)
         self.assertEqual(len(self.device.requests),1)
 
+    def test_pick_place_uses_same_camera_plane_for_led_target_and_mechanical_sequence(self):
+        config = replace(self.config, gripper=replace(
+            self.config.gripper, calibrated=True, release_angle=118, engage_angle=81))
+        system = TabletopSystem(config,self.display,self.mechanical,
+                                 MotionOptions(enabled=True,pick_place=True,speed_mm_s=45),
+                                 self.device,rotation=180,flip_x=True)
+        system.update((self.display_tag,),(self.mechanical_tag,),1)
+        request_id = system.request_move(7,Point(20,10),1)
+        self.assertEqual(self.device.requests,
+                         [('actuator.servo',{'angle':118},request_id)])
+        self.assertEqual(system.motion_view.stage,'RELEASE')
+        self.assertEqual(system._mover.start,Point(20,30))
+        self.assertEqual(system._mover.target,Point(40,30))
+        self.assertEqual(system.motion_view.target,Point(20,10))
+
     def test_idle_stop_latches_until_explicit_cancel_or_reset(self):
         system = self.system()
         system.update((self.display_tag,),(self.mechanical_tag,),1)

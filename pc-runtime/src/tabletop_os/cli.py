@@ -85,9 +85,13 @@ def main(argv=None) -> int:
     gesture.add_argument("--rotation", type=int, choices=(0, 180))
     gesture.add_argument("--flip-x", action=argparse.BooleanOptionalAction, default=None)
     gesture.add_argument("--hold-seconds", type=float, default=0, help="标签记忆时间；0 一直保留")
-    gesture.add_argument("--constant-engage", action="store_true", help="启用持续吸合的磁吸滑台联动")
+    actuation = gesture.add_mutually_exclusive_group()
+    actuation.add_argument("--constant-engage", action="store_true", help="启用持续吸合的磁吸滑台联动")
+    actuation.add_argument("--pick-place", action="store_true",
+                           help="启用双标定的释放→寻找→吸附→拖动→释放完整流程")
     gesture.add_argument("--allow-pickup-offset", action="store_true", help="本次测试跳过棋子与机构对齐检查")
-    gesture.add_argument("--speed", type=float, default=2, help="持续吸合模式速度 mm/s")
+    gesture.add_argument("--speed", type=float, default=None,
+                         help="持续吸合模式速度 mm/s；默认读取配置中的 interaction.speed_mm_s")
     gesture.add_argument("--max-drag-mm", type=float, default=0, help="单次距离上限；0 仅受机械工作区限制")
     args = parser.parse_args(argv)
     args.app = args.app or ("single-piece" if args.simulate or args.headless or args.demo else "gesture-drag")
@@ -99,13 +103,15 @@ def main(argv=None) -> int:
         if args.input != "camera":
             parser.error("手势拖动应用要求 --input camera")
         import math
-        if not (math.isfinite(args.speed) and 0.5 <= args.speed <= 25 and
+        if not ((args.speed is None or math.isfinite(args.speed) and 0.5 <= args.speed <= 50) and
                 math.isfinite(args.max_drag_mm) and args.max_drag_mm >= 0 and
                 math.isfinite(args.hold_seconds) and args.hold_seconds >= 0):
-            parser.error("速度须为 0.5–25 mm/s，距离与记忆时间须为非负有限值")
-    elif (args.constant_engage or args.allow_pickup_offset or args.reuse_map or
+            parser.error("速度须为 0.5–50 mm/s，距离与记忆时间须为非负有限值")
+        if args.pick_place and args.allow_pickup_offset:
+            parser.error("完整取放流程会自动寻找棋子，不能使用 --allow-pickup-offset")
+    elif (args.constant_engage or args.pick_place or args.allow_pickup_offset or args.reuse_map or
           args.rotation is not None or args.flip_x is not None or args.hold_seconds != 0 or
-          args.speed != 2 or args.max_drag_mm != 0):
+          args.speed is not None or args.max_drag_mm != 0):
         parser.error("这些灯板/持续吸合选项需要 --app gesture-drag")
     if args.headless != args.demo or (args.demo and not args.simulate):
         parser.error("--headless --demo 必须一起使用，且要求 --simulate")
@@ -117,6 +123,8 @@ def main(argv=None) -> int:
         parser.error("真实动作要求 AprilTag 观测，请使用 --input camera；鼠标仅用于仿真")
     try:
         config = load_config(args.config)
+        if args.app == "gesture-drag" and args.speed is None:
+            args.speed = config.interaction.speed_mm_s
         configure_logging(config, args.log, args.app == "gesture-drag")
         if args.check_config:
             print("配置有效；舵机标定：", config.gripper.calibrated)

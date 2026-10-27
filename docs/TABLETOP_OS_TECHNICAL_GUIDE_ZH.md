@@ -2,9 +2,13 @@
 
 > **2026-10-24 更新：** PC 现已统一启动入口，并拆分系统服务与应用层。当前入口、模块路径及相机联动命令以 [PC 分层说明](PC_LAYERS_ZH.md) 为准；下面保留 2026-10-16 的升降序列、协议与诊断说明。原 `interaction.py` 的状态机已移到 `apps/single_piece.py`，旧路径保留兼容导出。
 
-> 更新日期：2026-10-16。本文对应本次工作区的 V0.1 软件实现，已从原先“只有 Pi/Arduino”的说明重写。代码文件指纹见 [CODE_REFERENCE_MANIFEST.json](CODE_REFERENCE_MANIFEST.json)，用 [校验工具](../tools/validate_technical_guide.py) 检查文档链接、关键符号和代码是否变化。
+> **2026-10-26 舵机标定：** 当前升降机构已手动测得 81° 最高吸附、118° 最低释放。正式固件将可接受命令限制在 81–118°，本机 `local-runtime.json` 已使用这两个端点并将完整流程速度设为 45 mm/s；稳定时间、安全间距及完整实物闭环仍待验证。
+
+> **2026-10-26 行程复测：** X 宽度行程为 `344−46=298 mm`，Y 长度行程为 `514−48=466 mm`，减数是 moving carriage 尺寸。2 mm 软件边距后的有效目标范围为 X `2–296 mm`、Y `2–464 mm`；此前基于 342×515 mm 的相机标定必须重新生成。
+
+> 更新日期：2026-10-26。本文对应本次工作区的 V0.1 软件实现，已从原先“只有 Pi/Arduino”的说明重写。代码文件指纹见 [CODE_REFERENCE_MANIFEST.json](CODE_REFERENCE_MANIFEST.json)，用 [校验工具](../tools/validate_technical_guide.py) 检查文档链接、关键符号和代码是否变化。
 >
-> **软件候选版已实现，实物闭环尚未验收。** 已有可运行的鼠标仿真、摄像头/MediaPipe/AprilTag 接口、双捏合交互、舵机升降永磁铁动作序列、PC RGB 合成、Pi 像素帧接收和 Arduino 固件。用户确认舵机角度尚未标定，默认实物动作锁定；本次没有连接相机、Pi、灯板或电机进行实测。编译、仿真和离线识别不能替代真实硬件验收。
+> **软件候选版已实现，实物闭环尚未验收。** 已有可运行的鼠标仿真、摄像头/MediaPipe/AprilTag 接口、双捏合交互、舵机升降永磁铁动作序列、PC RGB 合成、Pi 像素帧接收和 Arduino 固件。共享默认配置仍锁定实物动作，只有本机配置写入了已测端点；编译、仿真和端点测试不能替代完整真实硬件验收。
 
 面向读者：具备 Arduino、Physical Computing（实体交互计算）和基本编程知识，希望理解软件如何组织的开发者。建议先看 A/C/D，再按 I 运行；改效果看 G，诊断设备看 E/F，明天上机看[实机联调记录表](HARDWARE_COMMISSIONING_ZH.md)。路径以仓库根目录为基准；本文链接相对 `docs/`。
 
@@ -344,7 +348,7 @@ void loop() {
 
 当前 A=(X+Y)×100、B=(X−Y)×100，再乘轴方向符号；反算 X=(A+B)/200、Y=(A−B)/200。100 steps/mm 来自 200 整步×16 细分÷(2 mm 齿距×16 齿)。软件常量不会改变 A4988 跳帽。
 
-非阻塞不等于零等待：emitStepEvent 有 4 µs 脉宽等待；Serial.print 仍可能等待缓冲，遥测仅检查可写至少 32 字节，而完整 STATE 可能更长；输入 while available 排空也可能拖长一轮。4000 events/s 是计划上限，不能当成已测实时能力。
+非阻塞不等于零等待：emitStepEvent 有 4 µs 脉宽等待；Serial.print 仍可能等待缓冲，遥测仅检查可写至少 32 字节，而完整 STATE 可能更长；输入 while available 排空也可能拖长一轮。为容纳 50 mm/s CoreXY 对角运动，计划上限已提高到 8000 events/s，但这只是软件配置，不是 Uno 已实测达到该实时能力的证据。
 
 ### C.3 退出与故障资源清理
 
@@ -679,7 +683,7 @@ Pi控制输出最多64条，先替换未发状态，关键事件仍放不下则�
 
 Compositor使用bytearray存RGB888，不依赖OpenCV；每帧清黑，画拖影、棋子标记、选中圈、目标圈、最后画光标。put始终R=0，G/B以最大值混合；光标覆盖自身像素，避免与蓝线混淆。圆环用整数中点圆算法；捏合时多一圈和3×3中心块。
 
-毫米到像素：u=clamp(x/342)、v=clamp(y/515)，可选flip，像素round(u×63)、round(v×63)。中心(171,257.5)→(32,32)，两端→0/63。X/Y毫米间距约5.43/8.17mm，所以像素圆在物理矩形桌面未必是真圆。board.flip只改变显示，不改电机方向或相机标定。
+毫米到像素：u=clamp(x/298)、v=clamp(y/466)，可选flip，像素round(u×63)、round(v×63)。中心(149,233)→(32,32)，两端→0/63。X/Y毫米间距约4.73/7.40mm，所以像素圆在物理矩形桌面未必是真圆。board.flip只改变显示，不改电机方向或相机标定。
 
 ### G.2 拖影的历史与时间
 
@@ -767,7 +771,7 @@ python -m venv pc-runtime/.venv
 
 相机标定窗口S保存、R重选、Esc取消；点击的顺序对应真实机械坐标。输出默认local-calibration.json被忽略。check_vision不连接Pi/电机，只打印输入和棋子观测；若模型、相机或标定缺失会明确失败。离线标定支持--image和--corners，具体参数见工具--help。
 
-舵机角度仍未标定，先照[实机联调表](HARDWARE_COMMISSIONING_ZH.md)逐点测试。calibrate_servo.ps1的Port/Angle必须显式填写，先停Pi和其他串口占用者，卸下连杆或确认间距后才用MechanismClear。它不自动扫描、不自动回到某个角度；SERVO_OFF不是断电。仿真内存用60/120，仅虚拟，不可当实测值照抄。
+当前机构已按[实机联调表](HARDWARE_COMMISSIONING_ZH.md)逐点测得 81° 最高吸附和 118° 最低释放。calibrate_servo.ps1 的 Port/Angle 必须显式填写，先停 Pi 和其他串口占用者，卸下连杆或确认间距后才用 MechanismClear。它不自动扫描、不自动回到某个角度；SERVO_OFF 不是断电。仿真内存仍用 60/120，仅为虚拟值，不可发送给实物。
 
 ### I.3 Pi依赖、编译与服务
 
@@ -814,14 +818,14 @@ PC配置[pc-runtime/config/runtime.json](../pc-runtime/config/runtime.json)：
 
 | section | 默认关键值及作用 |
 | --- | --- |
-| board | 342×515mm，margin2，64×64像素，flip=false；逻辑画面与运动边界 |
+| board | 298×466mm，margin2，64×64像素，flip=false；逻辑画面与运动边界 |
 | interaction | piece_id0、仿真初始80/100、选取22mm；输入250ms、观测500ms；pinch0.25/0.40、去抖60ms；速度10mm/s、动作90s；验证5秒/5mm/3样本 |
 | render | 目标60Hz、圆环4px、G140/B255；拖影B220、1500ms、128点、0.25mm最小步长 |
 | network | host127.0.0.1、TCP7420、帧UDP7422；heartbeat400ms、reconnect1000ms、response_timeout1500ms |
 | camera | index0，1280×720；模型与标定路径相对配置文件；confidence0.6，DICT_APRILTAG_36h11、最小面积100px |
 | gripper | calibrated=false，release_angle/engage_angle=null，settle0.6秒、pickup_tolerance3mm；未标定不能操作实物 |
 
-机器配置请复制成local-runtime.json，填Pi地址、安全角度与稳定时间，最后才设calibrated=true；local*.json被忽略。相机标定文件也必须在对应配置目录或用绝对路径。PC配置严格拒绝拼错键，避免静默回默认。
+机器配置请复制成 local-runtime.json，填 Pi 地址、安全角度与稳定时间，最后才设 calibrated=true；local*.json 被忽略。本机文件已写入 release=118、engage=81、speed=45 mm/s，settle_s 仍需在完整升降测试中确认。相机标定文件也必须在对应配置目录或用绝对路径。PC配置严格拒绝拼错键，避免静默回默认。
 
 Pi配置[pi-bridge/config/tabletop-os.json](../pi-bridge/config/tabletop-os.json)：
 
@@ -830,8 +834,8 @@ Pi配置[pi-bridge/config/tabletop-os.json](../pi-bridge/config/tabletop-os.json
 | network | bind0.0.0.0，TCP7420、诊断UDP7421、帧UDP7422；heartbeat1500ms；control行4096字节 |
 | serial | enabled=true，/dev/ttyACM0（部署换稳定by-id），115200；重连1000、握手2200、PING400、退出750ms |
 | display | mode=frames；组帧100、无新帧250ms；rows32/cols64/chain2/parallel1；expected64×64；brightness30、PWM11、slowdown4；regular+Remap；降权tabletop-os |
-| motion | allow_network_commands=false；X2–340、Y2–513mm，speed0.5–25mm/s；遥测500ms，任务180秒，STOP2500ms，servo ACK1500ms |
-| board/cursor/trail | 只供diagnostic本地绘图；默认物理范围0–342/515、光标250ms/4px、拖影1500ms/128点 |
+| motion | allow_network_commands=false；X2–296、Y2–464mm，speed0.5–50mm/s；遥测500ms，任务180秒，STOP2500ms，servo ACK1500ms |
+| board/cursor/trail | 只供diagnostic本地绘图；默认物理范围0–298/466、光标250ms/4px、拖影1500ms/128点 |
 
 PC、Pi和固件范围须一致，Pi JSON不能更改固件步数、加速度、细分、回零方向或看门狗。更换传动件先把MACHINE_CONFIG_CONFIRMED改false，重新标定后再确认。Pi当前缺字段取默认、未知键不拒绝，改配置必须检查拼写并重启；没有热加载。
 
@@ -850,7 +854,7 @@ arduino-cli upload --fqbn arduino:avr:uno --port COM3 --input-dir ./tmp/uno-buil
 
 COM3是待替换示例，upload未在本次执行。本次CLI1.5.1/AVR Core1.8.7/Servo1.3.0编译最新版通过：Flash17310/32256（53%），全局SRAM643/2048（31%）。软件HAL测试不替代AVR目标编译，更不替代实物。
 
-串口监视器115200、换行、大写命令。先IDENTIFY/CONFIG/STATUS，手动按限位看IO，再抬起磁铁、低速HOME，等COMPLETED HOME后逐条测试：
+串口监视器115200、换行、大写命令。先IDENTIFY/CONFIG/STATUS，手动按限位看IO，再把磁铁置于 118° 最低释放位置、低速HOME，等COMPLETED HOME后逐条测试：
 
 ```text
 MOVE_TO 1 10 10 2
@@ -885,10 +889,12 @@ MOVE_TO 4 10 20 2
 完成[实机表](HARDWARE_COMMISSIONING_ZH.md)的角度、方向、距离、限位、相机标定后，人工启用Pi deployed配置allow_network_commands并重启，再启动：
 
 ```powershell
-./pc-runtime/.venv/Scripts/python.exe -m tabletop_os --app single-piece --config ./pc-runtime/config/local-runtime.json --input camera --log ./pc-runtime/logs/hardware.log
+./pc-runtime/.venv/Scripts/python.exe -m tabletop_os --app gesture-drag --config ./pc-runtime/config/local-runtime.json --reuse-map --pick-place --speed 45 --log ./pc-runtime/logs/hardware.log
 ```
 
-先点HOME（先release、settle、再HOME），等待设备新鲜IDLE/referenced，看到ID=0棋子的新观测后再双捏合。PC不会自动解锁Pi或猜舵机角度。尚未完成明天实测前，此命令的相机/实物行为不能标成验收通过。
+先固定相机完成两套平面标定：`local-display-map.json` 对应 320×480 mm 发光区域，`local-calibration.json` 对应移动滑台中心 298×466 mm 可达区。两者必须使用相同的相机分辨率与裁切。PC 通过共享相机平面执行 `LED → camera → mechanical mm` 和反向投影，居中装配时自然保留左右 11 mm、上下 7 mm 边缘；最终像素旋转/镜像不参与电机坐标。
+
+启动后按 `H`（先 118° release、settle、再 HOME），等待设备新鲜 IDLE/referenced，看到棋子的新观测后再双捏合。完整顺序为 118° release → seek → 81° engage → drag → 118° release → 新观测验证。PC不会自动解锁Pi或猜舵机角度。尚未完成实测前，此命令的相机/实物行为不能标成验收通过。
 
 PC日志由logging写终端，--log可存UTF-8文件；Pi stdout/stderr进journal，无数据库或日志轮转实现。常用Pi诊断：
 
@@ -911,7 +917,7 @@ id tabletop-os
 | MOTION_DISABLED / CONTROL_LEASE_EXPIRED | 查Pi锁或PC主循环/心跳；一次性脚本不能续运动租约 |
 | connected=false / NOT_READY | 稳定设备路径、dialout、IDE占用、USB、正式固件身份；错误身份/三次握手超时需修正重连 |
 | COMMAND_ID_NOT_SYNCHRONIZED | 旧固件CONFIG缺LAST_TASK_ID，更新正式固件，不用重发碰运气 |
-| NOT_HOMED / HOME_REQUIRED | 上电/释放/故障/断线使参考无效；正确抬起磁铁后重新HOME |
+| NOT_HOMED / HOME_REQUIRED | 上电/释放/故障/断线使参考无效；先将磁铁置于最低释放位置再重新HOME |
 | RANGE | PC/Pi/固件范围与速度不同；显示全范围不代表电机允许贴边 |
 | TELEMETRY_STALE / COMMAND_TIMEOUT / SERVO_TIMEOUT | 查STATE年龄、串口输出和匹配事件；已请求停止，先确认实物状态，不盲重发 |
 | STOP_TIMEOUT | 串口已停用，先处理硬件安全再重启服务；独立看门狗是后备而非停稳证明 |
@@ -952,7 +958,7 @@ id tabletop-os
 | 视觉独立进程、网络独立线程 | 相机/推理阻塞可隔离，主循环故障不能被I/O心跳掩盖 | 进程拷贝/队列有开销，异常相机退出仍需现场验证 |
 | 最终RGB在PC合成，Pi只输出 | 游戏视觉和硬件映射分开，便于扩展 | 每秒固定像素带宽；当前仅64×64，无压缩/自适应分辨率 |
 | 观测验证后才提交位置 | 能区分执行器完成和棋子掉队 | 依赖标定和标签可见性；无法证明未观测时的物理真值 |
-| 未标定锁、R=0、默认Pi运动关闭 | 已知现场约束直接体现在代码中 | 仍需人工标定与物理急停，不能宣称通用机械安全保证 |
+| 共享默认标定锁、R=0、默认Pi运动关闭 | 已知现场约束直接体现在代码中；本机端点单独保存 | 仍需验证稳定时间、安全间距与物理急停，不能宣称通用机械安全保证 |
 
 这些理由按实际源码与当前需求归纳。替代方案是可比较方向，不表示仓库曾实现并实测淘汰它们。
 
@@ -960,12 +966,12 @@ id tabletop-os
 
 详见[本次验证记录](VALIDATION_2026-10-16.md)：Python核心/仿真/离线视觉测试、C++组帧测试、真实固件配假HAL测试、本机真实C++服务的TCP/UDP黑盒测试、Uno目标编译、HUB75官方头文件语法编译。模型空白推理与合成Tag检测用了真实库；没有真实手、镜头、灯板或机构证据。
 
-历史Context记录Integrated_Hardware_Test实物通过，但那是旧实验程序，不能外推到本版回零、速度、升降保持或完整闭环。当前待验：安全角度/间距/供电、PWM关闭后的机械行为、全程磁铁抬起、方向/步距/回零/制动、USB拔插与看门狗、Pi权限/面板映射/双缓冲/刷新、相机遮挡/标定误差/延迟、滑脱和完整双捏合Demo。
+历史Context记录Integrated_Hardware_Test实物通过，但那是旧实验程序，不能外推到本版回零、速度、升降保持或完整闭环。升降端点已测得，当前仍待验：稳定时间/安全间距/供电、PWM关闭后的机械行为、回零全程保持最低释放位置、方向/步距/回零/制动、USB拔插与看门狗、Pi权限/面板映射/双缓冲/刷新、相机遮挡/标定误差/延迟、滑脱和完整双捏合Demo。
 
 ### K.3 已知问题与技术债
 
 - 已知硬件问题是局部红色通道故障；R=0并未修复面板。实际帧率、热负载、丢步和磁耦合强度还没有数据。
-- 没有实测舵机角度或位置反馈；actuator.completed表示命令ACK，不是机械到位。settle时间和掉电行为必须标定。
+- 已实测两个舵机端点，但没有位置反馈；actuator.completed表示命令ACK，不是机械到位。settle时间和掉电行为仍必须标定。
 - Pi请求缓存只保留内存中最近64个ID，没有持久结果查询；重启后仍须查状态，不能盲重试。串口身份兼容标志不是密码学身份。
 - 真实PC→Pi→USB→Uno整条链路尚未上机；黑盒服务测试禁用serial/GPIO，假HAL不模拟电气/AVR实时开销。
 - 停止是尽力的软件制动与信号清理；STOP超时会停用串口并要求重启，不自动猜测安全恢复动作。物理急停和机械支撑仍必要。

@@ -9,8 +9,8 @@ from .model import Point
 
 @dataclass(frozen=True)
 class BoardConfig:
-    width_mm: float = 342
-    height_mm: float = 515
+    width_mm: float = 298
+    height_mm: float = 466
     margin_mm: float = 2
     width_px: int = 64
     height_px: int = 64
@@ -134,7 +134,7 @@ def load_config(path: str | Path) -> RuntimeConfig:
             b.width_px == 64 and b.height_px == 64):
         raise ValueError("V0.1 requires a valid board and a 64x64 frame")
     if not (0 < i.pinch_on < i.pinch_off < 2 and i.debounce_ms >= 0 and
-            0.5 <= i.speed_mm_s <= 25 and i.verification_samples >= 1 and
+            0.5 <= i.speed_mm_s <= 50 and i.verification_samples >= 1 and
             i.command_timeout_s > 0 and i.verification_timeout_s > 0 and
             i.observation_timeout_ms >= 50 and i.input_timeout_ms >= 50 and
             i.selection_radius_mm > 0 and i.verification_tolerance_mm > 0 and

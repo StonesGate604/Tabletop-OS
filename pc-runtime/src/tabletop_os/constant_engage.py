@@ -10,8 +10,8 @@ from .model import Observation, Point
 
 class ConstantEngageDrag:
     def __init__(self, config, device, speed_mm_s=2, max_drag_mm=None, allow_pickup_offset=False):
-        if not math.isfinite(speed_mm_s) or not 0.5 <= speed_mm_s <= 25:
-            raise ValueError('Speed must be finite and between 0.5 and 25 mm/s')
+        if not math.isfinite(speed_mm_s) or not 0.5 <= speed_mm_s <= 50:
+            raise ValueError('Speed must be finite and between 0.5 and 50 mm/s')
         if max_drag_mm is not None and (not math.isfinite(max_drag_mm) or max_drag_mm <= 0):
             raise ValueError('Maximum drag distance must be finite and positive')
         self.config = config

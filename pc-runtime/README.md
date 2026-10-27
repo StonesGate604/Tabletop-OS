@@ -6,13 +6,15 @@ Python 3.11+。实现单棋子双捏合交互、PC RGB 合成、舵机升降永�
 
 现在统一使用 `python -m tabletop_os` 启动，默认打开手势拖动应用的预览模式。已有选区时用 `--reuse-map`；系统服务在 `src/tabletop_os/system/`，应用在 `src/tabletop_os/apps/`。完整分工和命令见[PC 主程序与系统/应用分层](../docs/PC_LAYERS_ZH.md)。
 
-现场联动设置（需要已回零及正确标定）：
+完整取放联动（需要先完成显示、机械两套相机标定；按 `H` 会先释放磁铁再回零）：
 
 ```powershell
-./pc-runtime/.venv/Scripts/python.exe -m tabletop_os --app gesture-drag --reuse-map --constant-engage --allow-pickup-offset --speed 15
+./pc-runtime/.venv/Scripts/python.exe -m tabletop_os --app gesture-drag --config ./pc-runtime/config/local-runtime.json --reuse-map --pick-place --speed 45 --log ./pc-runtime/logs/hardware.log
 ```
 
-旧 `tools/hand_pointer.py` 继续兼容，但只转交给上述同一主入口。原仿真命令不变；原带升降舵机的实物模式明确选择 `--app single-piece`。
+省略 `--speed` 时，测试链路会读取当前配置的 `interaction.speed_mm_s`；本机 `local-runtime.json` 已设为 45 mm/s。命令行参数仍可临时覆盖该值。
+
+旧 `tools/hand_pointer.py` 继续兼容，但只转交给上述同一主入口。原仿真命令不变。`single-piece` 保留用于原仿真/兼容流程；实物空间对齐使用上面的 `gesture-drag --pick-place`，因为它同时使用灯板与机械两套标定。
 
 ## 先运行仿真
 
@@ -47,19 +49,26 @@ python -m venv pc-runtime/.venv
 
 模型下载有固定 SHA256；运行时不自动下载。标签为 36h11/ID0，保留白边。相机四角按物理 (0,0)、(W,0)、(W,H)、(0,H) 点击，S 保存/R 重选/Esc 取消。换分辨率或机位后重标定。
 
-复制 config/runtime.json 为 config/local-runtime.json，设置 Pi IP；安全角度实测后再填 gripper.release_angle/engage_angle、settle_s，最后 calibrated=true。目前用户角度未标定，默认锁住实际动作。Pi 的 allow_network_commands 也默认 false，必须完成硬件验证后人工启用。
+完整链路需要在相机、裁切、缩放和桌面均保持不动时建立两套独立标定：
+
+1. 机械标定：运行 `calibrate_camera.py --config ./pc-runtime/config/local-runtime.json`，依次点击移动滑台中心可到达区域的 `(0,0)`、`(298,0)`、`(298,466)`、`(0,466)` 四角，保存为 `local-calibration.json`。
+2. 显示标定：启动 `gesture-drag` 时不要加 `--reuse-map`，依次点击实际 320×480 mm 发光区域的左上、右上、右下、左下四角，按 `S` 保存为 `local-display-map.json`。
+
+两套单应变换共享同一相机像素平面。PC 会把灯板目标先反投影回相机画面，再投影为机构毫米坐标；反向也用同一关系绘制棋子和运动目标。因此居中的机械可达区相对灯面应自然保留左右各 11 mm、上下各 7 mm 的不可达边缘，而不是把 298×466 mm 拉伸填满 320×480 mm。显示旋转和 X 镜像只作用于最终像素，不改变机械目标。
+
+复制 config/runtime.json 为 config/local-runtime.json，设置 Pi IP；安全角度实测后再填 gripper.release_angle/engage_angle、settle_s，最后 calibrated=true。本机已写入 81° 最高吸附、118° 最低释放和 45 mm/s；共享默认配置仍锁住实际动作。Pi 的 allow_network_commands 也默认 false，必须完成硬件验证后人工启用。
 
 ```powershell
-./pc-runtime/.venv/Scripts/python.exe -m tabletop_os --app single-piece --config ./pc-runtime/config/local-runtime.json --input camera --log ./pc-runtime/logs/hardware.log
+./pc-runtime/.venv/Scripts/python.exe -m tabletop_os --app gesture-drag --config ./pc-runtime/config/local-runtime.json --reuse-map --pick-place --speed 45 --log ./pc-runtime/logs/hardware.log
 ```
 
-真实模式要求摄像头观测，禁止用自动脚本或鼠标冒充真实棋子观测。HOME 会先抬起、等待再回零；双捏合动作按 release→seek→engage→drag→release→verify 执行。物理急停、角度、限位和相机误差仍待实物验收。
+真实模式要求摄像头观测，禁止用自动脚本或鼠标冒充真实棋子观测。启动后先按 `H`；HOME 会先把磁铁降到 118° 最低释放位置、等待再回零。双捏合动作按 118° release → seek → 81° engage → drag → 118° release → verify 执行。任何阶段失联、故障、超时或标签不再位于吸取点都会停止且不会自动重放。物理急停、角度、限位和相机误差仍待实物验收。
 
 Linux 使用 .venv/bin/python；Tk 可能需要系统 python3-tk，本次未做 Linux GUI 验证。可编辑源码安装已验证，尚无独立桌面安装器。
 
 ## 从电脑手动控制 Pi / Arduino
 
-`tools/control_pi.py` 只使用 Python 标准库，无需相机、视觉依赖或安装 Runtime。先将磁铁抬起并固定，验证限位和方向；该工具不会自动控制升降舵机，不属于棋子观测验证流程。Pi 仍须人工设置 `motion.allow_network_commands=true` 并重启服务；工具不会修改 Pi 配置。
+`tools/control_pi.py` 只使用 Python 标准库，无需相机、视觉依赖或安装 Runtime。先将磁铁置于 118° 最低释放位置并固定，验证限位和方向；该工具不会自动控制升降舵机，不属于棋子观测验证流程。Pi 仍须人工设置 `motion.allow_network_commands=true` 并重启服务；工具不会修改 Pi 配置。
 
 在电脑项目根目录的 PowerShell 中执行（IP 换成实际树莓派地址）：
 
@@ -71,7 +80,7 @@ python ./pc-runtime/tools/control_pi.py --host 192.168.1.2 move --x 20 --y 10 --
 python ./pc-runtime/tools/control_pi.py --host 192.168.1.2 stop
 ```
 
-坐标为绝对毫米坐标，速度为 mm/s。每条等完成再执行下一条；未回零会拒绝移动。HOME/MOVE 在同一 TCP 连接中持续发心跳并等待匹配的完成事件，不自动重连或重发动作；退出时关闭连接会触发 Pi 的 STOP，但不重启服务，正常情况下可保留坐标参考。断电、Arduino 复位或位置参考失效后必须重新回零。
+坐标为绝对毫米坐标，速度为 mm/s。软件允许范围现为 0.5–50 mm/s，但 50 mm/s 尚未完成实物验证；应按 15/20/30/40/50 分级测试。每条等完成再执行下一条；未回零会拒绝移动。HOME/MOVE 在同一 TCP 连接中持续发心跳并等待匹配的完成事件，不自动重连或重发动作；退出时关闭连接会触发 Pi 的 STOP，但不重启服务，正常情况下可保留坐标参考。断电、Arduino 复位或位置参考失效后必须重新回零。
 
 运动中在执行命令的窗口按 Ctrl+C，工具会请求 STOP 并等待 Arduino 的停止确认。Pi 只允许一个控制连接，另一个窗口的 `stop` 无法抢占正在运行的连接，也不要同时运行 Runtime 或树莓派本地回零脚本。`stop` 的发送 ACK 不等于实物停止；工具等待 `motion.stopped`。遇到机械危险仍使用物理急停。Ctrl+C 清理和退出也无法保证断电/进程被强杀时的软件停止确认。
 
@@ -89,7 +98,7 @@ python ./pc-runtime/tools/control_pi.py --host 192.168.1.2 --display-first move 
 
 `panel-test` 不发送运动命令，画面为大数字 1、左上绿色块和右上蓝色块。`--display-first` 使用同一个控制连接建立显示会话、维持心跳，并通过 UDP 7422 发送 TOSF 最终帧；Pi 状态确认接收到至少一帧后才发送动作。它不能判断实体灯板是否真正亮起，仍需现场观察。测试结束或连接关闭后自动清屏，不要另开一个进程占用显示/运动连接。
 
-回零时底部显示蓝色状态条，因坐标尚无参考，不显示有效位置标记。回零后，青色标记为步进脉冲估计的机构位置，绿色十字为移动目标，蓝线为本次会话记录的机构轨迹；底部绿色表示已回零且空闲。遥测过期后隐藏位置标记并显示蓝色叉。图像是把 342×515 mm 行程压缩到第一块面板内的缩略诊断图，不是棋子真实观测，也不代表灯板像素已与桌面毫米位置对齐。红色通道仍关闭。
+回零时底部显示蓝色状态条，因坐标尚无参考，不显示有效位置标记。回零后，青色标记为步进脉冲估计的机构位置，绿色十字为移动目标，蓝线为本次会话记录的机构轨迹；底部绿色表示已回零且空闲。遥测过期后隐藏位置标记并显示蓝色叉。图像是把 298×466 mm 行程压缩到第一块面板内的缩略诊断图，不是棋子真实观测，也不代表灯板像素已与桌面毫米位置对齐。红色通道仍关闭。
 
 本机测试共 12 项，新增覆盖 TOSF/UDP 组帧、显示会话在运动前建立、无运动命令的亮屏测试、第二块区域及红色全黑、坐标裁剪。2026-10-23 从电脑对真实 Pi 执行过 2 秒 `panel-test`，状态确认收到图像帧；未据此宣称灯板物理输出通过。
 
@@ -114,7 +123,7 @@ python ./pc-runtime/tools/control_pi.py --host 192.168.1.2 --display-all --rotat
 
 测试现共 17 项，包含 RGB 像素整体旋转、单块旋转范围及旋转显示时运动坐标保持不变。
 
-按用户确认，以蓝色状态边为下方观察时，机构回零点位于左下角，X 正方向向右、Y 正方向向上。因此缩略图的坐标映射使用左下原点：完整画布在整体旋转前将 `(0,0)` 映射到 `(2,56)`，`(342,515)` 映射到 `(61,2)`，再统一应用当前的 180° 显示旋转。位置、目标和轨迹共用该映射；不修改 Arduino 电机方向或步数换算。当前 18 项测试包含原点及两个正方向的映射回归测试。
+按用户确认，以蓝色状态边为下方观察时，机构回零点位于左下角，X 正方向向右、Y 正方向向上。因此缩略图的坐标映射使用左下原点：完整画布在整体旋转前将 `(0,0)` 映射到 `(2,56)`，`(298,466)` 映射到 `(61,2)`，再统一应用当前的 180° 显示旋转。位置、目标和轨迹共用该映射；不修改 Arduino 电机方向或步数换算。当前 18 项测试包含原点及两个正方向的映射回归测试。
 
 手动 `move` 使用绝对毫米坐标，`--speed 2` 为 2 mm/s。回零后约 `(2,2)` 到 `(20,20)` 每轴只变化约 18 mm；再次发送相同目标不会继续前进。工具在发送 MOVE 前会打印机构报告的起点、绝对目标、X/Y 差值及速度。报告坐标仍是步进脉冲估计，实际距离需用尺子标定，不能仅凭 COMPLETED 判断步距正确。
 

@@ -3,6 +3,7 @@ from dataclasses import dataclass
 import math
 
 from ..constant_engage import ConstantEngageDrag
+from ..pick_place import PickPlaceDrag
 from ..device import NetworkDevice
 from ..model import DeviceSnapshot, Point
 from .coordinates import project_between
@@ -13,15 +14,19 @@ from .tracking import TagMemory, in_display
 @dataclass(frozen=True)
 class MotionOptions:
     enabled: bool = False
+    pick_place: bool = False
     speed_mm_s: float = 2
     max_drag_mm: float | None = None
     allow_pickup_offset: bool = False
 
     def __post_init__(self):
-        if type(self.enabled) is not bool or type(self.allow_pickup_offset) is not bool:
+        if (type(self.enabled) is not bool or type(self.pick_place) is not bool or
+                type(self.allow_pickup_offset) is not bool):
             raise ValueError('Motion mode flags must be booleans')
-        if not math.isfinite(self.speed_mm_s) or not 0.5 <= self.speed_mm_s <= 25:
-            raise ValueError('Speed must be finite and between 0.5 and 25 mm/s')
+        if self.pick_place and (not self.enabled or self.allow_pickup_offset):
+            raise ValueError('Pick-place requires motion and does not use pickup-offset bypass')
+        if not math.isfinite(self.speed_mm_s) or not 0.5 <= self.speed_mm_s <= 50:
+            raise ValueError('Speed must be finite and between 0.5 and 50 mm/s')
         if self.max_drag_mm is not None and (not math.isfinite(self.max_drag_mm) or self.max_drag_mm <= 0):
             raise ValueError('Maximum drag distance must be finite and positive')
 
@@ -30,6 +35,7 @@ class MotionOptions:
 class MotionView:
     enabled: bool
     phase: str
+    stage: str
     error: str
     selected_id: int | None
     target: Point | None
@@ -51,16 +57,22 @@ class TabletopSystem:
             if (display_mapping.width, display_mapping.height) != (mechanical_mapping.width, mechanical_mapping.height):
                 raise ValueError('Mechanical and display calibrations must use the same camera crop')
         self.config = config
+        self.options = options
         self.display_mapping = display_mapping
         self.mechanical_mapping = mechanical_mapping
-        self.options = options
         self.rotation = rotation
         self.flip_x = flip_x
         self.tracking = TagMemory(config.interaction, hold_s)
         self._device = device if device is not None else NetworkDevice(config.network)
-        self._mover = (ConstantEngageDrag(config, self._device, options.speed_mm_s, options.max_drag_mm,
-                                        allow_pickup_offset=options.allow_pickup_offset)
-                       if options.enabled else None)
+        if options.enabled and options.pick_place:
+            self._mover = PickPlaceDrag(config, self._device, options.speed_mm_s,
+                                        options.max_drag_mm)
+        elif options.enabled:
+            self._mover = ConstantEngageDrag(config, self._device, options.speed_mm_s,
+                                             options.max_drag_mm,
+                                             allow_pickup_offset=options.allow_pickup_offset)
+        else:
+            self._mover = None
         self._mechanical_observations = ()
         self._error = ''
         self._started = False
@@ -115,6 +127,7 @@ class TabletopSystem:
         target = (project_between(mover.target, self.mechanical_mapping, self.display_mapping)
                   if mover and mover.target is not None else None)
         return MotionView(enabled=mover is not None, phase=mover.phase if mover else 'DISABLED',
+                          stage=getattr(mover, 'stage', mover.phase) if mover else 'DISABLED',
                           error=(mover.error if mover else '') or self._error,
                           selected_id=mover.selected_id if mover else None,
                           target=target, device=self.snapshot())
@@ -152,6 +165,18 @@ class TabletopSystem:
             except (RuntimeError, OSError):
                 pass
         self._error = ''
+
+    def home(self, now):
+        try:
+            if self._closed:
+                raise RuntimeError('SYSTEM_CLOSED')
+            if not self.options.pick_place or self._mover is None:
+                raise RuntimeError('HOME_REQUIRES_PICK_PLACE')
+            self._mover.home(now)
+            self._error = ''
+        except (ValueError, RuntimeError, OSError) as exc:
+            self._error = str(exc)
+            raise
 
     def reset(self):
         if self._mover:

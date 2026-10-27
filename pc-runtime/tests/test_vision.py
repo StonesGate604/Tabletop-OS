@@ -20,15 +20,15 @@ class VisionTests(unittest.TestCase):
         self.assertEqual(cropped[60,50].tolist(), [20,40,60])
         h = from_corners([(0,639),(1069,639),(1069,0),(0,0)], (1070,640), BoardConfig())
         self.assertAlmostEqual(h.map(0,639).x, 0)
-        self.assertAlmostEqual(h.map(1069,0).y, 515)
+        self.assertAlmostEqual(h.map(1069,0).y, 466)
         with self.assertRaises(ValueError):
             crop_frame(frame[:300], CameraConfig(crop_width=1000,crop_height=640))
 
     def test_homography_maps_corners_and_rejects_degenerate(self):
         h = from_corners([(100,100),(700,80),(750,550),(80,560)],(800,600),BoardConfig())
         point = h.map(750,550)
-        self.assertAlmostEqual(point.x,342,places=3)
-        self.assertAlmostEqual(point.y,515,places=3)
+        self.assertAlmostEqual(point.x,298,places=3)
+        self.assertAlmostEqual(point.y,466,places=3)
         with self.assertRaises(ValueError):
             from_corners([(0,0),(10,10),(20,20),(30,30)],(800,600),BoardConfig())
 
@@ -42,8 +42,8 @@ class VisionTests(unittest.TestCase):
         observations=AprilTagDetector('DICT_APRILTAG_36h11',100).detect(image,h,1)
         self.assertEqual(len(observations),1)
         self.assertEqual(observations[0].piece_id,0)
-        self.assertAlmostEqual(observations[0].position.x,171,delta=1)
-        self.assertAlmostEqual(observations[0].position.y,257.5,delta=1)
+        self.assertAlmostEqual(observations[0].position.x,149,delta=1)
+        self.assertAlmostEqual(observations[0].position.y,233,delta=1)
 
     @unittest.skipUnless(importlib.util.find_spec('mediapipe'), 'MediaPipe not installed')
     def test_actual_hand_landmarker_model_load_and_blank_inference(self):

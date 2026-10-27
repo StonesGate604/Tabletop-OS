@@ -261,13 +261,13 @@ class FirstPanelRenderTests(unittest.TestCase):
 
     def test_position_and_target_are_clipped_to_first_panel(self):
         self.assertEqual(control.PanelDisplay.point(-20, -30), (2, 24))
-        self.assertEqual(control.PanelDisplay.point(342, 515), (61, 2))
+        self.assertEqual(control.PanelDisplay.point(298, 466), (61, 2))
         self.assertEqual(control.PanelDisplay.point(1000, 1000), (61, 2))
 
     def test_full_display_home_is_bottom_left_and_positive_axes_are_right_up(self):
         self.assertEqual(control.PanelDisplay.point(0, 0, 64), (2, 56))
-        self.assertEqual(control.PanelDisplay.point(342, 0, 64), (61, 56))
-        self.assertEqual(control.PanelDisplay.point(0, 515, 64), (2, 2))
+        self.assertEqual(control.PanelDisplay.point(298, 0, 64), (61, 56))
+        self.assertEqual(control.PanelDisplay.point(0, 466, 64), (2, 2))
         start = control.PanelDisplay.point(20, 20, 64)
         right = control.PanelDisplay.point(40, 20, 64)
         up = control.PanelDisplay.point(20, 40, 64)
@@ -299,7 +299,7 @@ class FirstPanelRenderTests(unittest.TestCase):
                 return pixels[offset:offset + 3]
             self.assertEqual(at(3, 60), bytes((0, 0, 160)))
             self.assertEqual(at(3, 28), bytes((0, 0, 0)))
-            self.assertEqual(control.PanelDisplay.point(342, 515, 64), (61, 2))
+            self.assertEqual(control.PanelDisplay.point(298, 466, 64), (61, 2))
             self.assertFalse(any(pixels[::3]))
         finally:
             panel.close()

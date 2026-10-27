@@ -46,7 +46,22 @@ int main() {
     Require(!parseUnsignedLongStrict("4294967296", parsed), "uint32 overflow accepted");
     Require(parseUnsignedLongStrict("4294967295", parsed) && parsed == 0xFFFFFFFFUL, "max uint32 rejected");
     Require(isNewer32(1, 0xFFFFFFFFUL), "command wrap not recognized");
-    Command("CONFIG"); Require(Has("LAST_TASK_ID=0"), "missing command-id synchronization");
+    Command("CONFIG");
+    Require(Has("SERVO_RELEASE=118") && Has("SERVO_ENGAGE=81") &&
+            Has("X_TRAVEL=298.00") && Has("Y_TRAVEL=466.00") &&
+            Has("MAX_SPEED=50.00") && Has("MAX_STEP_RATE=8000") && Has("LAST_TASK_ID=0"),
+            "missing travel/servo/speed configuration or command-id synchronization");
+
+    ResetReferenced();
+    Command("SERVO 80");
+    Require(!actuatorServo.attached() && Has("ERROR SERVO_RANGE 0"),
+            "servo command below calibrated range accepted");
+    Serial.output.clear(); Command("SERVO 119");
+    Require(!actuatorServo.attached() && Has("ERROR SERVO_RANGE 0"),
+            "servo command above calibrated range accepted");
+    Serial.output.clear(); Command("SERVO 81"); Command("SERVO 118");
+    Require(actuatorServo.attached() && servoAngle == 118 && Has("OK SERVO 81") && Has("OK SERVO 118"),
+            "calibrated servo endpoints rejected");
 
     ResetReferenced();
     Command("MOVE_TO 142 22 20 2");
@@ -58,6 +73,17 @@ int main() {
     Require(mode == MODE_IDLE && std::fabs(xPosition()-22) < .001f && Has("COMPLETED 142"), "completion/position mismatch");
     Serial.output.clear(); Command("MOVE_TO 142 22 20 2");
     Require(Has("ERROR STALE_ID 142"), "completed ID replay accepted");
+
+    ResetReferenced(); Command("MOVE_TO 1 120 120 50");
+    Require(mode == MODE_TASK_MOVE && plan.active && std::fabs(plan.maxSpeed-50.0f) < .01f,
+            "50 mm/s diagonal move was not accepted at the requested speed");
+    FinishPlan();
+    ResetReferenced(); Command("MOVE_TO 1 21 20 50.1");
+    Require(!plan.active && Has("ERROR RANGE 1"), "move above 50 mm/s was accepted");
+    ResetReferenced(); Command("MOVE_TO 1 297 20 2");
+    Require(!plan.active && Has("ERROR RANGE 1"), "move beyond the new X soft limit was accepted");
+    ResetReferenced(); Command("MOVE_TO 1 20 465 2");
+    Require(!plan.active && Has("ERROR RANGE 1"), "move beyond the new Y soft limit was accepted");
 
     ResetReferenced(); Command("MOVE_TO 143 100 20 10");
     for (int i = 0; i < 1000; ++i) { fakeMicros += 100; serviceMotionPlan(); }

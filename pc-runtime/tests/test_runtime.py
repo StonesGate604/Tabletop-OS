@@ -211,9 +211,11 @@ class ConfigTests(unittest.TestCase):
             with self.subTest(value=value), self.assertRaises(ValueError):
                 self.load(value)
 
-    def test_fractional_measurements_and_valid_angles(self):
-        config = self.load({'board':{'width_mm':342.5},'gripper':{'calibrated':True,'release_angle':70,'engage_angle':100}})
+    def test_fractional_measurements_valid_angles_and_maximum_speed(self):
+        config = self.load({'board':{'width_mm':342.5},'interaction':{'speed_mm_s':50},
+                            'gripper':{'calibrated':True,'release_angle':70,'engage_angle':100}})
         self.assertEqual(config.board.width_mm,342.5)
+        self.assertEqual(config.interaction.speed_mm_s,50)
         self.assertTrue(config.gripper.calibrated)
 
 

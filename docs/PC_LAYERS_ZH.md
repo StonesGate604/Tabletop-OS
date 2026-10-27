@@ -10,23 +10,30 @@
 
 默认打开手势拖动测试应用的预览模式，使用本机 `local-runtime.json`（存在时）。只显示画面，不自动启用运动。已有选区且相机机位未变化时，添加 `--reuse-map`。
 
-复现现场的 15 mm/s 持续吸合联动设置：
+复现现场的 45 mm/s 持续吸合联动设置：
 
 ```powershell
-./pc-runtime/.venv/Scripts/python.exe -m tabletop_os --app gesture-drag --reuse-map --constant-engage --allow-pickup-offset --speed 15
+./pc-runtime/.venv/Scripts/python.exe -m tabletop_os --app gesture-drag --reuse-map --constant-engage --allow-pickup-offset --speed 45
 ```
 
 `--allow-pickup-offset` 只对本次进程跳过位置对齐检查；不带它启动即可恢复检查。系统仍检查真实标签观测、回零、遥测、工作区及动作完成后的独立观测。不会自动回零、接近棋子或重放旧动作。Space 请求停止，C 取消/重置，R 重选灯板区域，Esc 退出。
+
+`--speed` 可省略；测试链路随后读取当前配置的 `interaction.speed_mm_s`。本机 `local-runtime.json` 为 45 mm/s，共享默认配置仍为 10 mm/s。
 
 原单棋子应用和仿真仍从同一入口选择：
 
 ```powershell
 ./pc-runtime/.venv/Scripts/python.exe -m tabletop_os --simulate
 ./pc-runtime/.venv/Scripts/python.exe -m tabletop_os --simulate --headless --demo
-./pc-runtime/.venv/Scripts/python.exe -m tabletop_os --app single-piece --input camera --config ./pc-runtime/config/local-runtime.json
 ```
 
-最后一条是带舵机升降的原流程，仍要求完成安全角度标定。`--simulate` 自动选择单棋子应用，保持原命令兼容。
+`--simulate` 自动选择单棋子应用，保持原命令兼容。实物完整取放改用双标定的手势应用：
+
+```powershell
+./pc-runtime/.venv/Scripts/python.exe -m tabletop_os --app gesture-drag --config ./pc-runtime/config/local-runtime.json --reuse-map --pick-place --speed 45
+```
+
+本机配置已写入 81° 最高吸附和 118° 最低释放，并使用 45 mm/s；其他机器仍必须独立标定。`--pick-place` 会执行释放、空载寻找、吸合、拖动、释放和视觉验证；按 `H` 时先释放再回零。灯板与机械标定必须来自同一相机机位和裁切：前者点击 320×480 mm 发光区域，后者点击移动滑台中心的 298×466 mm 可达区。系统通过相机平面在两者之间换算，不把机械范围强行缩放到整块灯面。
 
 `tools/hand_pointer.py` 现在只是兼容启动脚本，内部调用统一入口的 `gesture-drag` 应用，不再维护另一套相机/电机主循环。
 
@@ -37,8 +44,9 @@
 | 主入口 | `pc-runtime/src/tabletop_os/cli.py` | 选择应用、加载配置、日志和启动；默认不会开启实物运动 |
 | 系统服务入口 | `system/session.py`：`TabletopSystem` | 独占设备连接、读取事件、执行动作检查、坐标转换、显示发送和停止处理 |
 | 相机服务 | `system/camera.py` | 采集、裁切、手势识别、同一帧分别生成灯板及机械观测 |
-| 坐标与标签记忆 | `system/coordinates.py`、`system/tracking.py` | 统一坐标转换；保存最后观测位置，不伪造新鲜观测 |
+| 坐标与标签记忆 | `system/coordinates.py`、`system/tracking.py` | 通过共享相机平面转换灯板像素与机械毫米；保存最后观测位置，不伪造新鲜观测 |
 | 显示服务 | `system/display.py` | 根据应用场景绘制方框、光圈和目标；统一应用灯板镜像/旋转 |
+| 完整取放 | `pick_place.py` | 118° 释放→寻找→81° 吸合→拖动→118° 释放→新观测验证；失效时停止且不重放 |
 | 手势测试应用 | `apps/gesture_drag.py` | 双捏合选择、目标预览、确认一次移动意图、生成场景 |
 | 单棋子应用 | `apps/single_piece.py` | 原单棋子选择、规则状态与结果验证状态机；原 `Runtime` 继续作为其宿主 |
 | 操作窗口 | `gesture_ui.py` | 选区、按键、摄像头和状态预览；经应用/系统接口操作，不直接发送电机命令 |
@@ -65,4 +73,4 @@
 
 ## 本次验证
 
-系统/应用拆分完成后，120 项自动测试通过，包含原有行为、应用切换、摄像头模拟、窗口重选区/退出清理、单次移动提交及停止处理。原 `--simulate --headless --demo` 完整演示也通过，并验证了未加载视觉依赖时仍可运行仿真。实机联调基线见 [2026-10-24 记录](VALIDATION_2026-10-24.md)；本次结构调整未自动发起实物运动。
+系统/应用拆分及双标定完整取放加入后，自动测试覆盖应用切换、两套映射、居中机械范围的 11/7 mm 边距、取放命令顺序、摄像头模拟、窗口重选区/退出清理、单次移动提交及停止处理。原 `--simulate --headless --demo` 完整演示也继续验证。实机联调基线见 [2026-10-24 记录](VALIDATION_2026-10-24.md)；本次修改未自动发起实物运动。

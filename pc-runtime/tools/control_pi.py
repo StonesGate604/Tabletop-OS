@@ -44,8 +44,8 @@ class PanelDisplay:
         # With the blue status edge at the bottom, home is bottom-left;
         # positive X moves right and positive Y moves up. Rotation is applied
         # later to pixels, without changing any motor coordinates.
-        return (2 + round(max(0., min(1., x / 342.)) * 59),
-                height - 8 - round(max(0., min(1., y / 515.)) * (height - 10)))
+        return (2 + round(max(0., min(1., x / 298.)) * 59),
+                height - 8 - round(max(0., min(1., y / 466.)) * (height - 10)))
 
     def record(self, msg, now):
         display = msg.get("display", {})
@@ -389,8 +389,8 @@ def main(argv=None):
     move.add_argument("--y", type=finite_number, required=True)
     move.add_argument("--speed", type=finite_number, default=2, help="速度 mm/s，默认 2")
     args = parser.parse_args(argv)
-    if args.timeout <= 0 or (args.command == "move" and not 0.5 <= args.speed <= 25):
-        parser.error("超时须大于 0，移动速度须为 0.5–25 mm/s")
+    if args.timeout <= 0 or (args.command == "move" and not 0.5 <= args.speed <= 50):
+        parser.error("超时须大于 0，移动速度须为 0.5–50 mm/s")
     if args.command == "panel-test" and not 0 < args.seconds <= 300:
         parser.error("显示测试时间须大于 0 且不超过 300 秒")
     if (args.display_first or args.display_all) and args.command in ("status", "stop"):

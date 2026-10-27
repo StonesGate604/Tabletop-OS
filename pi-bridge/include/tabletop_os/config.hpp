@@ -27,9 +27,9 @@ struct SerialConfig {
 
 struct BoardConfig {
   double min_x_mm = 0.0;
-  double max_x_mm = 342.0;
+  double max_x_mm = 298.0;
   double min_y_mm = 0.0;
-  double max_y_mm = 515.0;
+  double max_y_mm = 466.0;
   bool flip_x = false;
   bool flip_y = false;
 };
@@ -78,11 +78,11 @@ struct DisplayConfig {
 struct MotionConfig {
   bool allow_network_commands = false;
   double min_x_mm = 2.0;
-  double max_x_mm = 340.0;
+  double max_x_mm = 296.0;
   double min_y_mm = 2.0;
-  double max_y_mm = 513.0;
+  double max_y_mm = 464.0;
   double minimum_speed_mm_s = 0.5;
-  double maximum_speed_mm_s = 25.0;
+  double maximum_speed_mm_s = 50.0;
   int telemetry_timeout_ms = 500;
   int command_timeout_ms = 180000;
   int stop_timeout_ms = 2500;

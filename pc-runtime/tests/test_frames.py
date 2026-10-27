@@ -59,8 +59,8 @@ class RendererTests(unittest.TestCase):
     def test_mapping_and_red_mask(self):
         cfg = RuntimeConfig()
         renderer = Compositor(cfg)
-        self.assertEqual(renderer.pixel(Point(171,257.5)),(32,32))
-        c = DemoController(cfg); c.cursor = Point(171,257.5)
+        self.assertEqual(renderer.pixel(Point(149,233)),(32,32))
+        c = DemoController(cfg); c.cursor = Point(149,233)
         rgb = renderer.render(c,0,True)
         self.assertFalse(any(rgb[0::3]))
         self.assertGreater(max(rgb[1::3]),0)

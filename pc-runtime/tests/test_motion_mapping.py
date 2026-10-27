@@ -4,7 +4,7 @@ import importlib.util
 from pathlib import Path
 import unittest
 
-from tabletop_os.calibration import from_corners
+from tabletop_os.calibration import Calibration, from_corners
 from tabletop_os.config import BoardConfig, RuntimeConfig
 from tabletop_os.constant_engage import ConstantEngageDrag
 from tabletop_os.model import Observation, Point
@@ -36,11 +36,11 @@ class MotionMappingTests(unittest.TestCase):
         self.assertAlmostEqual(actual.y,expected.y,places=5)
 
     def test_panel_corners_map_to_mechanical_subset_with_correct_axes(self):
-        cases = ((Point(0,0),Point(256.5,386.25)),
-                 (Point(63,0),Point(256.5,128.75)),
-                 (Point(63,63),Point(85.5,128.75)),
-                 (Point(0,63),Point(85.5,386.25)),
-                 (Point(31.5,31.5),Point(171,257.5)))
+        cases = ((Point(0,0),Point(223.5,349.5)),
+                 (Point(63,0),Point(223.5,116.5)),
+                 (Point(63,63),Point(74.5,116.5)),
+                 (Point(0,63),Point(74.5,349.5)),
+                 (Point(31.5,31.5),Point(149,233)))
         for led,mechanical in cases:
             with self.subTest(led=led):
                 self.assert_point(self.module.project_between(led,self.display,self.mechanical),mechanical)
@@ -78,6 +78,21 @@ class MotionMappingTests(unittest.TestCase):
         self.assert_point(Point(fields['x_mm'],fields['y_mm']),mm_target)
         self.assertGreater(abs(fields['x_mm']-led_target.x),100)
         self.assertGreater(abs(fields['y_mm']-led_target.y),100)
+
+    def test_centered_reachable_area_maps_to_the_correct_physical_led_pixels(self):
+        # White light area is 320x480 mm.  The 298x466 mm carriage-centre
+        # workspace is inset 11 mm horizontally and 7 mm vertically.
+        display = Calibration(320,480,63,63,
+                              ((63/320,0,0),(0,63/480,0),(0,0,1)))
+        mechanical = Calibration(320,480,298,466,
+                                 ((1,0,-11),(0,1,-7),(0,0,1)))
+        cases = ((Point(0,0),Point(11/320*63,7/480*63)),
+                 (Point(149,233),Point(31.5,31.5)),
+                 (Point(298,466),Point(309/320*63,473/480*63)))
+        for millimetres,pixels in cases:
+            with self.subTest(millimetres=millimetres):
+                self.assert_point(self.module.project_between(
+                    millimetres,mechanical,display),pixels)
 
 
 if __name__ == '__main__':

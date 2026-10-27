@@ -1,6 +1,6 @@
 # Tabletop OS 项目上下文与当前架构基线
 
-> **2026-10-16 软件更新：** PC Runtime、双捏合与舵机升降序列、仿真、离线视觉和 PC→Pi TOSF 最终帧通道现已实现并通过软件测试。用户尚未标定升降安全角度，真实硬件闭环待验。当前实现以 [技术说明书](TABLETOP_OS_TECHNICAL_GUIDE_ZH.md) 和 [验证记录](VALIDATION_2026-10-16.md) 为准；下文的 2026-10-12 状态与后续建议保留为历史背景，不应当作最新功能清单。
+> **2026-10-26 状态更新：** PC Runtime、双捏合与舵机升降序列、仿真、离线视觉和 PC→Pi TOSF 最终帧通道现已实现并通过软件测试。本机升降端点已实测为 81° 最高吸附、118° 最低释放，测试链路使用 45 mm/s；行程复测为 X=298 mm（`344−46`）、Y=466 mm（`514−48`），旧机械相机标定已失效。稳定时间、安全间距和真实硬件闭环仍待验。当前实现以 [技术说明书](TABLETOP_OS_TECHNICAL_GUIDE_ZH.md) 和 [实机联调记录](HARDWARE_COMMISSIONING_ZH.md) 为准；下文的 2026-10-12 状态与后续建议保留为历史背景，不应当作最新功能清单。
 
 > 用途：给当前及后续 Codex 任务提供统一上下文。开始新任务时，先让 Codex 阅读本文件和相关模块的 README，再决定是否修改代码。
 >
@@ -21,7 +21,7 @@ LLM 永远不直接控制电机。任何由 LLM 或游戏逻辑提出的动作�
 - `experiments/arduino/CoreXY_Controller/`：Arduino UNO R3 + CNC Shield V3 + A4988 的 CoreXY 调试固件与说明。
 - `experiments/arduino/Limit_Servo_Test/`：两个限位开关与舵机的独立测试程序。
 - `experiments/arduino/Integrated_Hardware_Test/`：两个步进电机、两个限位开关和舵机的联合测试程序；实物测试已通过。
-- `firmware/arduino/TabletopOS_Lower_Controller/`：正式下位机固件及协议说明。配置为 X=342 mm、Y=515 mm，两个限位均位于最小端起点；当前正式固件使用 `X_AXIS_SIGN=1`、`Y_AXIS_SIGN=1`，两个回零方向均为 `-1`，使 X/Y 分别向左、向下寻找起点限位。两个 A4988 驱动插槽下的三个细分跳帽均已安装，固件按 1/16 细分、GT2 皮带和 16 齿同步轮配置为 `100 steps/mm`。
+- `firmware/arduino/TabletopOS_Lower_Controller/`：正式下位机固件及协议说明。重新测得 X=298 mm（`344−46`）、Y=466 mm（`514−48`），减数为 moving carriage 尺寸；两个限位均位于最小端起点。当前正式固件使用 `X_AXIS_SIGN=1`、`Y_AXIS_SIGN=1`，两个回零方向均为 `-1`，使 X/Y 分别向左、向下寻找起点限位。两个 A4988 驱动插槽下的三个细分跳帽均已安装，固件按 1/16 细分、GT2 皮带和 16 齿同步轮配置为 `100 steps/mm`。
 - `experiments/raspberry-pi/gpio_high_test.py`：已有 GPIO/HUB75 方向的测试代码。
 - `docs/Tabletop_OS_Development_Roadmap.md` 与 `docs/Tabletop_OS_中文路径规划图.md`：较长期的产品与研究路线。
 
@@ -39,7 +39,7 @@ LLM 永远不直接控制电机。任何由 LLM 或游戏逻辑提出的动作�
 - 非阻塞执行自动 `HOME`、带编号的 `MOVE_TO` 和最新值语义的 `SET_TARGET`；运动过程中仍持续解析串口。
 - 返回 `ACK`、`STARTED`、`COMPLETED`、`ERROR` 和可选周期 `STATE` 快照，并拒绝旧任务编号或倒序目标序号；周期遥测上电默认关闭，可用 `TELEMETRY ON/OFF` 控制。
 - 具有受控 `STOP`、即时 `!`、软限位、意外硬限位故障、跟随目标超时、舵机超时和错误恢复状态。
-- 已使用本机 Arduino AVR 工具链为 Arduino Uno 编译通过。当前代码参数为：任务移动最高 25 mm/s、连续跟随 20 mm/s、加速度 60 mm/s²、最大 4000 步进事件/秒、回零速度 8/2 mm/s。自动回零、全行程软限位、这些速度参数和连续跟随仍需按当前 1/16 细分配置重新完成实物验证。
+- 已使用本机 Arduino AVR 工具链为 Arduino Uno 编译通过。当前代码参数为：任务移动软件上限 50 mm/s、连续跟随 20 mm/s、加速度 60 mm/s²、最大 8000 步进事件/秒、回零速度 8/2 mm/s。50 mm/s 尚未完成实物验证；自动回零、全行程软限位、分级速度和连续跟随仍需按当前 1/16 细分配置重新测试。
 
 ## 3. 现在真正要完成的目标
 

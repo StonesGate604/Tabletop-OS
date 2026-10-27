@@ -17,8 +17,10 @@ def run_gesture_window(config, options):
     import cv2
     import numpy as np
 
+    pick_place = getattr(options, 'pick_place', False)
     motion_options = MotionOptions(
-        enabled=options.constant_engage,
+        enabled=options.constant_engage or pick_place,
+        pick_place=pick_place,
         speed_mm_s=options.speed,
         max_drag_mm=options.max_drag_mm or None,
         allow_pickup_offset=options.allow_pickup_offset)
@@ -40,6 +42,7 @@ def run_gesture_window(config, options):
     frozen = None
     corners = []
     title = 'Tabletop OS | Gesture app | C cancel | Space STOP | R remap | Esc quit | ' + (
+        'PICK + PLACE' if motion_options.pick_place else
         'CONSTANT MAGNET DRAG' if motion_options.enabled else 'PREVIEW')
 
     def start_system(selected_mapping):
@@ -100,6 +103,7 @@ def run_gesture_window(config, options):
                            (384, 384), interpolation=cv2.INTER_NEAREST))
                 state = system.snapshot()
                 motion = system.motion_view
+                motion_stage = getattr(motion, 'stage', motion.phase)
                 status = system.display_status()
                 position = sample.position
                 inside = position is not None and 0 <= position.x <= 63 and 0 <= position.y <= 63
@@ -109,7 +113,9 @@ def run_gesture_window(config, options):
                 cv2.putText(display,
                             f'Tags: {tag_ids} | held: {sorted(system.tracking.cached_ids)} | selected: {app.selection.selected_id} | {app.selection.phase}',
                             (10, 44), cv2.FONT_HERSHEY_SIMPLEX, .48, (0, 255, 0), 1)
-                instruction = ('Pinch confirms DRAG | keep tag visible | C cancel | Space STOP' if motion.enabled else
+                instruction = ('Pinch confirms PICK+DRAG | H home | keep tag visible | C cancel | Space STOP'
+                               if motion_options.pick_place else
+                               'Pinch confirms DRAG | keep tag visible | C cancel | Space STOP' if motion.enabled else
                                'Open hand, pinch near tag, release, move, pinch: PREVIEW ONLY | C cancel')
                 cv2.putText(display, instruction, (10, 66), cv2.FONT_HERSHEY_SIMPLEX, .43, (0, 255, 0), 1)
                 if system.tracking.ambiguous_ids:
@@ -118,19 +124,21 @@ def run_gesture_window(config, options):
                                 (10, 88), cv2.FONT_HERSHEY_SIMPLEX, .45, (255, 200, 0), 1)
                 if motion.enabled:
                     cv2.putText(display,
-                                f'Motor: {motion.phase} | home: {state.referenced} | mm: {state.position.x:.1f},{state.position.y:.1f}',
+                                f'Motor: {motion.phase}/{motion_stage} | home: {state.referenced} | mm: {state.position.x:.1f},{state.position.y:.1f}',
                                 (10, 110), cv2.FONT_HERSHEY_SIMPLEX, .45, (255, 255, 0), 1)
                     distance_label = f'max {motion_options.max_drag_mm:g} mm' if motion_options.max_drag_mm is not None else 'workspace bounds'
                     cv2.putText(display, app.error or motion.error or
-                                f'{motion_options.speed_mm_s:g} mm/s | {distance_label} | no servo commands',
+                                f'{motion_options.speed_mm_s:g} mm/s | {distance_label} | ' +
+                                ('118 release → seek → 81 engage → drag → 118 release'
+                                 if motion_options.pick_place else 'no servo commands'),
                                 (10, 132), cv2.FONT_HERSHEY_SIMPLEX, .45, (255, 255, 0), 1)
                     if motion_options.allow_pickup_offset:
                         cv2.putText(display, 'Test session: pickup alignment check OFF',
                                     (10, 154), cv2.FONT_HERSHEY_SIMPLEX, .45, (255, 255, 0), 1)
                 if now - last_report >= 2:
-                    LOG.info('%s | pointer=%s | tags=%s held=%s selected=%s phase=%s motor=%s error=%s | display=%s',
+                    LOG.info('%s | pointer=%s | tags=%s held=%s selected=%s phase=%s motor=%s/%s error=%s | display=%s',
                              text, position, tag_ids, sorted(system.tracking.cached_ids), app.selection.selected_id,
-                             app.selection.phase, motion.phase, app.error or motion.error, status)
+                             app.selection.phase, motion.phase, motion_stage, app.error or motion.error, status)
                     last_report = now
             else:
                 text = 'Click LED area: top-left, top-right, bottom-right, bottom-left; S starts'
@@ -155,6 +163,11 @@ def run_gesture_window(config, options):
                 app.cancel(system)
             if key == ord(' ') and system is not None:
                 app.stop(system)
+            if key == ord('h') and system is not None and motion_options.pick_place:
+                try:
+                    system.home(time.monotonic())
+                except (ValueError, RuntimeError, OSError) as exc:
+                    LOG.warning('HOME rejected: %s', exc)
             if key == ord('s') and len(corners) == 4 and mapping is None:
                 try:
                     chosen = from_corners(corners, camera.size, BoardConfig(width_mm=63, height_mm=63))
@@ -167,7 +180,10 @@ def run_gesture_window(config, options):
                     chosen.save(config.base_dir / 'local-display-map.json')
                     system = start_system(chosen)
                     mapping, frozen = chosen, None
-                    LOG.info('Display mapping ready; %s', 'constant-engagement drags enabled' if motion_options.enabled else 'display preview only')
+                    LOG.info('Display mapping ready; %s',
+                             'calibrated pick-place enabled' if motion_options.pick_place else
+                             'constant-engagement drags enabled' if motion_options.enabled else
+                             'display preview only')
             frame = camera.read()
     finally:
         try:

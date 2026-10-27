@@ -41,9 +41,10 @@ const bool SWITCH_NORMALLY_CLOSED = false;
 const int8_t X_HOME_DIRECTION = -1;
 const int8_t Y_HOME_DIRECTION = -1;
 
-// X is the 342 mm width; Y is the 515 mm length.
-const float X_TRAVEL_MM = 342.0f;
-const float Y_TRAVEL_MM = 515.0f;
+// Measured centre travel after subtracting the moving carriage size:
+// X width = 344 - 46 = 298 mm; Y length = 514 - 48 = 466 mm.
+const float X_TRAVEL_MM = 298.0f;
+const float Y_TRAVEL_MM = 466.0f;
 
 // Current hardware: all three M0/M1/M2 (MS1/MS2/MS3) jumpers are installed
 // under BOTH A4988 drivers, selecting 1/16 microstep mode.
@@ -56,12 +57,14 @@ const float STEPS_PER_MM = MOTOR_FULL_STEPS_PER_REV * MICROSTEPS /
                            (BELT_PITCH_MM * PULLEY_TEETH);
 const float SOFT_LIMIT_MARGIN_MM = 2.0f;
 
-// Normal motion is allowed up to 25 mm/s; homing remains deliberately slower.
-const float MAX_MOVE_SPEED_MM_S = 25.0f;
+// Normal motion may be commanded up to 50 mm/s; homing remains deliberately
+// slower. Treat this as a software ceiling, not a verified loaded speed.
+const float MAX_MOVE_SPEED_MM_S = 50.0f;
 const float TRACKING_SPEED_MM_S = 20.0f;
 const float ACCELERATION_MM_S2 = 60.0f;
-// Provides enough headroom for 25 mm/s diagonal CoreXY moves at 100 steps/mm.
-const float MAX_STEP_EVENT_RATE = 4000.0f;
+// A 50 mm/s diagonal CoreXY move at 100 steps/mm needs about 7072 events/s.
+// 8000 leaves calculation headroom but still requires staged physical testing.
+const float MAX_STEP_EVENT_RATE = 8000.0f;
 const float MIN_MOVE_SPEED_MM_S = 0.5f;
 
 const float HOME_FAST_SPEED_MM_S = 8.0f;
@@ -75,6 +78,17 @@ const float HOME_RESEEK_MAX_MM = 12.0f;
 
 const int SERVO_MIN_US = 500;
 const int SERVO_MAX_US = 2500;
+// Measured on the current lift linkage on 2026-10-26. At 81 degrees the
+// permanent magnet is at its highest/closest point and engages the piece. At
+// 118 degrees it is at its lowest/farthest point and releases the piece.
+const int SERVO_RELEASE_ANGLE = 118;
+const int SERVO_ENGAGE_ANGLE = 81;
+const int SERVO_SAFE_MIN_ANGLE =
+    SERVO_RELEASE_ANGLE < SERVO_ENGAGE_ANGLE ? SERVO_RELEASE_ANGLE
+                                             : SERVO_ENGAGE_ANGLE;
+const int SERVO_SAFE_MAX_ANGLE =
+    SERVO_RELEASE_ANGLE > SERVO_ENGAGE_ANGLE ? SERVO_RELEASE_ANGLE
+                                             : SERVO_ENGAGE_ANGLE;
 const unsigned long SERVO_TIMEOUT_MS = 10000UL;
 
 const unsigned long TARGET_TIMEOUT_MS = 500UL;
@@ -833,12 +847,20 @@ void printConfiguration() {
   Serial.print(X_AXIS_SIGN);
   Serial.print(F(" Y_AXIS_SIGN="));
   Serial.print(Y_AXIS_SIGN);
+  Serial.print(F(" SERVO_RELEASE="));
+  Serial.print(SERVO_RELEASE_ANGLE);
+  Serial.print(F(" SERVO_ENGAGE="));
+  Serial.print(SERVO_ENGAGE_ANGLE);
+  Serial.print(F(" MAX_SPEED="));
+  Serial.print(MAX_MOVE_SPEED_MM_S, 2);
+  Serial.print(F(" MAX_STEP_RATE="));
+  Serial.print(MAX_STEP_EVENT_RATE, 0);
   Serial.print(F(" LAST_TASK_ID="));
   Serial.println(lastTaskId);
 }
 
 void setServoAngle(long angle) {
-  if (angle < 0 || angle > 180) {
+  if (angle < SERVO_SAFE_MIN_ANGLE || angle > SERVO_SAFE_MAX_ANGLE) {
     printError(F("SERVO_RANGE"), 0);
     return;
   }

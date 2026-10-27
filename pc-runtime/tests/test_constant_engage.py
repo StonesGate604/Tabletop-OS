@@ -154,12 +154,12 @@ class ConstantEngageTests(unittest.TestCase):
 
     def test_large_pickup_offset_still_uses_actuator_distance_for_timeout(self):
         self.drag = ConstantEngageDrag(self.config,self.device,allow_pickup_offset=True)
-        # Tag is 10 mm from target, but the actuator must travel 220 mm.
-        self.drag.begin(Observation(7,Point(290,100),.09),Point(300,100),.1)
-        for now in (90.2,119.9):
+        # Tag is 10 mm from target, but the actuator must travel 210 mm.
+        self.drag.begin(Observation(7,Point(280,100),.09),Point(290,100),.1)
+        for now in (90.2,114.9):
             self.update(now)
             self.assertEqual(self.drag.phase,'MOVING')
-        self.update(120.2)
+        self.update(115.2)
         self.assertEqual(self.drag.phase,'ERROR')
         self.assertEqual(self.drag.error,'MOTION_TIMEOUT')
         self.assert_only_one_move()
@@ -175,14 +175,14 @@ class ConstantEngageTests(unittest.TestCase):
         self.assertEqual(self.device.requests,[])
 
     def test_long_drag_uses_distance_and_speed_deadline_instead_of_old_ninety_seconds(self):
-        # Actuator-to-target distance is 220 mm: 110 s at 2 mm/s plus 10 s slack.
+        # Actuator-to-target distance is 210 mm: 105 s at 2 mm/s plus 10 s slack.
         # The observed tag is 2 mm ahead but must not shorten this deadline.
         observation = Observation(7,Point(82,100),.09)
-        self.drag.begin(observation,Point(300,100),.1)
-        for now in (90.2,119.2,120.0):
+        self.drag.begin(observation,Point(290,100),.1)
+        for now in (90.2,114.2,115.0):
             self.update(now)
             self.assertEqual(self.drag.phase,'MOVING')
-        self.update(120.2)
+        self.update(115.2)
         self.assertEqual(self.drag.phase,'ERROR')
         self.assertEqual(self.drag.error,'MOTION_TIMEOUT')
         self.assert_only_one_move()

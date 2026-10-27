@@ -18,9 +18,9 @@
   },
   "board": {
     "min_x_mm": 0.0,
-    "max_x_mm": 342.0,
+    "max_x_mm": 298.0,
     "min_y_mm": 0.0,
-    "max_y_mm": 515.0,
+    "max_y_mm": 466.0,
     "flip_x": false,
     "flip_y": false
   },
@@ -65,11 +65,11 @@
   "motion": {
     "allow_network_commands": false,
     "min_x_mm": 2.0,
-    "max_x_mm": 340.0,
+    "max_x_mm": 296.0,
     "min_y_mm": 2.0,
-    "max_y_mm": 513.0,
+    "max_y_mm": 464.0,
     "minimum_speed_mm_s": 0.5,
-    "maximum_speed_mm_s": 25.0,
+    "maximum_speed_mm_s": 50.0,
     "telemetry_timeout_ms": 500,
     "command_timeout_ms": 180000,
     "stop_timeout_ms": 2500,
