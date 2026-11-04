@@ -144,3 +144,174 @@ class Runtime:
 
     def close(self):
         self.device.close()
+
+
+class ApplicationRuntime:
+    """Application host on the existing system facade, ticked by the PC UI loop.
+
+    No background application loop: camera input, device events, application
+    updates and frame publication each have one owner on the caller's tick.
+    """
+
+    def __init__(self, config, application_config, system, simulate=False):
+        from .application import ApplicationHost
+
+        if simulate and system.options.enabled:
+            raise ValueError('Simulation cannot enable hardware motion')
+        if application_config.rules.guard_mode == 'virtual' and system.options.enabled:
+            raise ValueError('Virtual guard cannot enable hardware motion')
+        self.config, self.system = config, system
+        self.simulate = simulate
+        self.host = ApplicationHost()
+        self.started = self.closed = False
+        self.rgb = b''
+        self._configure(application_config)
+
+    def _configure(self, application_config):
+        from .apps.patrol.game import PatrolApp
+        from .patrol_simulation import SimulatedPieces
+        from .system.application_motion import ApplicationMotion, TablePlane
+        from .system.pieces import PieceRegistry
+        from .system.proximity import ProximityService, StablePosition
+
+        self.application_config = application_config
+        self.plane = TablePlane(application_config.rules.grid)
+        self.registry = PieceRegistry(application_config.bindings, self.config.camera.april_tag_dictionary,
+                                      application_config.proximity.observation_timeout_s)
+        self.proximity = ProximityService(application_config.proximity)
+        self.filters = {key: StablePosition(application_config.proximity) for key in self.registry.by_id}
+        self.simulation = SimulatedPieces(application_config, self.plane) if self.simulate else None
+        mode = ('virtual' if application_config.rules.guard_mode == 'virtual' else
+                'simulation' if self.simulate else 'hardware' if self.system.options.enabled else 'manual')
+        self.motion = ApplicationMotion(self.system, self.registry, self.plane, application_config.proximity,
+                                        mode, self.simulation if mode == 'simulation' else None,
+                                        application_config.motion_timeout_s, application_config.rules.virtual_piece_ids)
+        self.host.load(PatrolApp(application_config.rules))
+        self._confirmed_physical = self.host.app.confirmed.copy()
+        self._started_at = None
+        self._last_now = None
+        self.hand_position = None
+        self.system.tracking.clear()
+        self.registry.announce()
+        LOG.info('Patrol guard mode=%s; motion backend=%s', application_config.rules.guard_mode, mode)
+
+    def start(self):
+        if self.closed:
+            raise RuntimeError('RUNTIME_CLOSED')
+        self.system.start()
+        self.host.start()
+        self.started = True
+
+    def tick_simulation(self, now):
+        if not self.simulate:
+            raise RuntimeError('NOT_SIMULATION')
+        sample, observations = self.simulation.samples(now)
+        return self.tick(sample, observations, (), now)
+
+    def tick(self, sample, observations, mechanical_observations, now):
+        import math
+        from .apps.patrol.game import GamePhase
+        from .apps.patrol.render import render_frame
+        from .system.pieces import PieceObservation
+        from .frame_protocol import FRAME_BYTES
+
+        if not self.started or self.closed:
+            raise RuntimeError('RUNTIME_NOT_RUNNING')
+        if not math.isfinite(now) or self._last_now is not None and now < self._last_now:
+            raise ValueError('INVALID_OR_BACKWARDS_TIME')
+        self._last_now = now
+        if self._started_at is None:
+            self._started_at = now
+        device_events = self.system.update(observations, mechanical_observations, now)
+        physical = tuple(replace(tag, position=self.plane.physical(tag.position)) for tag in observations)
+        hand = replace(sample, position=self.plane.physical(sample.position) if sample.position else None)
+        self.registry.update(physical, now)
+        app = self.host.app
+        if not self.host.running:
+            self.hand_position = None
+            self.rgb = self.system.publish_rgb(bytes(FRAME_BYTES))
+            return self.rgb
+        self.hand_position = (hand.position if hand.position is not None and hand.position.finite()
+                              and 0 <= now-hand.timestamp <= self.application_config.proximity.observation_timeout_s
+                              else None)
+        if self.registry.ambiguous:
+            app.fail('DUPLICATE_VISIBLE_TAGS:'+','.join(sorted(self.registry.ambiguous)))
+        fatal = next((e for e in device_events if e.get('type') in
+                     ('connection.lost', 'control.lease_expired', 'motion.interlock', 'arduino.error',
+                      'motion.stopped', 'motion.cancelled', 'error')), None)
+        if fatal:
+            app.fail(str(fatal.get('code', fatal.get('reason', fatal['type']))))
+        if self.system.options.enabled and self.system.motion_view.phase == 'ERROR':
+            app.fail(self.system.motion_view.error)
+        if app.phase != GamePhase.SETUP:
+            for key in self.registry.by_id:
+                last = self.registry.last.get(key)
+                if now-(last.timestamp if last else self._started_at) > self.application_config.proximity.tag_loss_grace_s:
+                    # Guard may be covered while the magnet is moving; the motion
+                    # service has its own bounded timeout and final verification.
+                    if not (self.motion.active and self.motion.pending.piece_id == key):
+                        app.fail(f'TRACKING_LOST:{key}; uncover and restart')
+        placements = {}
+        for key, stable_filter in self.filters.items():
+            observation = self.registry.visible.get(key)
+            if stable_filter.update(observation, now):
+                placements[key] = PieceObservation(key, observation.position, observation.timestamp)
+        events = self.proximity.update(hand, self.registry.visible, self.registry.last,
+                                       app.actionable, self._confirmed_physical, now)
+        result = self.motion.update(hand, now)
+        old_turn = app.turn
+        for request in self.host.tick(placements, events, result, now):
+            self.motion.begin(request, now)
+        for event in events:
+            if (event.kind == 'piece_position_stabilized' and not app.needs_return
+                    and app.phase != GamePhase.ERROR_RECOVERY
+                    and app.rules.grid.locate(event.position) == app.positions[event.piece_id]):
+                self._confirmed_physical[event.piece_id] = event.position
+                if app.turn == old_turn:
+                    self.proximity.cancelled()
+        if app.turn != old_turn:
+            self.proximity.committed()
+        if app.phase == GamePhase.ERROR_RECOVERY:
+            self.motion.cancel(app.error)
+        self.rgb = self.system.publish_rgb(render_frame(app, self.system.rotation, self.system.flip_x,
+                                                        cursor=self.hand_position))
+        return self.rgb
+
+    def pause(self):
+        self.motion.cancel('APPLICATION_PAUSED')
+        self.host.pause()
+        self.proximity.reset()
+        self.hand_position = None
+
+    def stop(self):
+        from .frame_protocol import FRAME_BYTES
+        self.motion.cancel('APPLICATION_STOPPED')
+        if self.system.motion_view.phase in ('HOMING', 'MOVING', 'VERIFYING'):
+            self.system.cancel('APPLICATION_STOPPED')
+        self.host.stop()
+        self.proximity.reset()
+        self.hand_position = None
+        self.system.publish_rgb(bytes(FRAME_BYTES))
+
+    def reload(self, application_config):
+        """Explicit restart only. Never mutate bindings during an operation."""
+        application_config.bindings.validate(self.config.camera.april_tag_dictionary)
+        if application_config.rules.guard_mode == 'virtual' and self.system.options.enabled:
+            raise ValueError('Virtual guard cannot enable hardware motion')
+        if self.motion.active or self.proximity.busy or self.system.motion_view.phase in ('HOMING', 'MOVING', 'VERIFYING'):
+            raise RuntimeError('RELOAD_BUSY: finish the interaction or stop before reloading')
+        self.stop()
+        self.system.reset()
+        self.host.unload()
+        self._configure(application_config)
+        self.host.start()
+
+    def close(self):
+        if self.closed:
+            return
+        self.closed = True
+        try:
+            self.motion.cancel('APPLICATION_CLOSED')
+            self.host.unload()
+        finally:
+            self.system.close()

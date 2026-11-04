@@ -138,9 +138,14 @@ def run_gesture_window(config, options):
                         cv2.putText(display, 'Test session: pickup alignment check OFF',
                                     (10, 154), cv2.FONT_HERSHEY_SIMPLEX, .45, (255, 255, 0), 1)
                 if now - last_report >= 2:
-                    LOG.info('%s | pointer=%s | tags=%s held=%s selected=%s phase=%s motor=%s/%s error=%s | display=%s',
+                    readiness = state.motion_readiness_error(decision_now)
+                    LOG.info('%s | pointer=%s | tags=%s held=%s selected=%s phase=%s motor=%s/%s error=%s readiness=%s '
+                             '[ready=%s ref=%s lease=%s enabled=%s inflight=%s mode=%s fault=%s age=%s] | display=%s',
                              text, position, tag_ids, sorted(system.tracking.cached_ids), app.selection.selected_id,
-                             app.selection.phase, motion.phase, motion_stage, app.error or motion.error, status)
+                             app.selection.phase, motion.phase, motion_stage, app.error or motion.error,
+                             readiness or 'READY', state.ready, state.referenced, state.lease_valid,
+                             state.commands_enabled, state.in_flight, state.mode, state.fault,
+                             state.telemetry_age_ms, status)
                     last_report = now
             else:
                 text = 'Click LED area: top-left, top-right, bottom-right, bottom-left; S starts'

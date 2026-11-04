@@ -196,6 +196,19 @@ class DeviceSnapshotTests(unittest.TestCase):
         message['command_id_synchronized']=True
         self.assertTrue(snapshot_from_message(message,1).can_operate_servo(1))
 
+    def test_readiness_error_identifies_the_blocking_interlock(self):
+        base = DeviceSnapshot(True,True,True,'IDLE',Point(2,2),Point(2,2),'NONE',
+                              True,True,False,1,0)
+        cases = (
+            (replace(base, commands_enabled=False), 'MOTION_COMMANDS_DISABLED'),
+            (replace(base, lease_valid=False), 'CONTROL_LEASE_INVALID'),
+            (replace(base, referenced=False), 'NOT_HOMED'),
+            (replace(base, telemetry_age_ms=501), 'TELEMETRY_STALE'),
+        )
+        for status, error in cases:
+            with self.subTest(error=error):
+                self.assertEqual(status.motion_readiness_error(1), error)
+
 
 class ConfigTests(unittest.TestCase):
     def load(self, value):

@@ -236,8 +236,7 @@ class Hub75Renderer::Impl {
     Color& pixel = frame_[static_cast<std::size_t>(y) *
                               static_cast<std::size_t>(width_) +
                           static_cast<std::size_t>(x)];
-    // Red remains deliberately disabled while the panel's red channel is
-    // under investigation.
+    // The legacy diagnostic cursor/trail palette uses green and blue only.
     pixel.r = 0;
     if (overwrite) {
       pixel.g = green;
@@ -375,8 +374,9 @@ class Hub75Renderer::Impl {
                now - snapshot.frame.received_at <=
                    std::chrono::milliseconds(config_.display.frame_timeout_ms)) {
       for (std::size_t i = 0; i < frame_.size(); ++i) {
-        // Keep the known red-channel hardware mask in the final output layer.
-        frame_[i] = Color(0, snapshot.frame.pixels[i * 3 + 1], snapshot.frame.pixels[i * 3 + 2]);
+        // Application frames own all three channels, including red guard tiles.
+        frame_[i] = Color(snapshot.frame.pixels[i * 3], snapshot.frame.pixels[i * 3 + 1],
+                          snapshot.frame.pixels[i * 3 + 2]);
       }
     }
     back_buffer_->SetPixels(0, 0, width_, height_, frame_.data());

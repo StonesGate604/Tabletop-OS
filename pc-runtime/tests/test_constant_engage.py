@@ -64,17 +64,22 @@ class ConstantEngageTests(unittest.TestCase):
 
     def test_not_homed_stale_telemetry_and_disabled_commands_reject_before_move(self):
         cases = (
-            dict(referenced=False), dict(ready=False), dict(connected=False),
-            dict(lease_valid=False), dict(commands_enabled=False),
-            dict(in_flight=True), dict(fault='LIMIT'),
-            dict(telemetry_age_ms=501), dict(received_at=-1),
+            (dict(referenced=False), 'NOT_HOMED'),
+            (dict(ready=False), 'ARDUINO_NOT_READY'),
+            (dict(connected=False), 'DEVICE_DISCONNECTED'),
+            (dict(lease_valid=False), 'CONTROL_LEASE_INVALID'),
+            (dict(commands_enabled=False), 'MOTION_COMMANDS_DISABLED'),
+            (dict(in_flight=True), 'MOTION_COMMAND_IN_FLIGHT'),
+            (dict(fault='LIMIT'), 'DEVICE_FAULT:LIMIT'),
+            (dict(telemetry_age_ms=501), 'TELEMETRY_STALE'),
+            (dict(received_at=-1), 'TELEMETRY_STALE'),
         )
-        for fields in cases:
-            with self.subTest(fields=fields):
+        for fields, error in cases:
+            with self.subTest(fields=fields, error=error):
                 device = FakeDevice()
                 device.state = replace(device.state,**fields)
                 drag = ConstantEngageDrag(self.config,device)
-                with self.assertRaisesRegex(RuntimeError,'DEVICE_NOT_READY'):
+                with self.assertRaisesRegex(RuntimeError,error):
                     drag.begin(self.start,self.target,.1)
                 self.assertEqual(drag.phase,'IDLE')
                 self.assertEqual(device.requests,[])
@@ -138,7 +143,7 @@ class ConstantEngageTests(unittest.TestCase):
     def test_pickup_offset_opt_in_keeps_fresh_observation_home_and_workspace_gates(self):
         cases = (
             (Observation(7,Point(250,100),-3600),self.target,True,'PIECE_OBSERVATION_STALE'),
-            (Observation(7,Point(250,100),.09),self.target,False,'DEVICE_NOT_READY'),
+            (Observation(7,Point(250,100),.09),self.target,False,'NOT_HOMED'),
             (Observation(7,Point(250,100),.09),Point(350,100),True,'POINT_OUTSIDE_WORKSPACE'),
             (Observation(7,Point(350,100),.09),self.target,True,'POINT_OUTSIDE_WORKSPACE'),
         )

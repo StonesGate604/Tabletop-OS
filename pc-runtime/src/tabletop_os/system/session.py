@@ -94,6 +94,7 @@ class TabletopSystem:
         events = self._device.poll()
         if self._mover:
             self._mover.update(events, self._mechanical_observations, now)
+        return events
 
     def request_move(self, piece_id, target_display, now):
         try:
@@ -144,6 +145,15 @@ class TabletopSystem:
             raise RuntimeError('SYSTEM_CLOSED')
         rgb = pointer_frame(scene.cursor, self.rotation, self.flip_x, scene.tags, scene.selected_id,
                             scene.target, scene.confirmed, scene.cached_ids)
+        self._device.publish(rgb)
+        return rgb
+
+    def publish_rgb(self, rgb):
+        """Publish an application's complete frame through the existing device owner."""
+        if self._closed:
+            raise RuntimeError('SYSTEM_CLOSED')
+        if len(rgb) != FRAME_BYTES:
+            raise ValueError('INVALID_FRAME_SIZE')
         self._device.publish(rgb)
         return rgb
 

@@ -50,15 +50,39 @@ class DeviceSnapshot:
     received_at: float = 0
     telemetry_age_ms: int = -1
 
+    def motion_readiness_error(self, now: float, require_reference: bool = True,
+                               freshness_ms: int = 500) -> str:
+        """Return the first actionable reason a new actuator command is blocked."""
+        if not math.isfinite(now):
+            return "INVALID_TIME"
+        if not self.connected:
+            return "DEVICE_DISCONNECTED"
+        if self.fault != "NONE":
+            return "DEVICE_FAULT:" + self.fault
+        if not self.commands_enabled:
+            return "MOTION_COMMANDS_DISABLED"
+        if not self.lease_valid:
+            return "CONTROL_LEASE_INVALID"
+        if self.in_flight:
+            return "MOTION_COMMAND_IN_FLIGHT"
+        if not self.ready:
+            return "ARDUINO_NOT_READY"
+        if self.mode not in ("IDLE", "UNREFERENCED"):
+            return "DEVICE_MODE:" + self.mode
+        if (self.telemetry_age_ms < 0 or now < self.received_at or
+                self.telemetry_age_ms+(now-self.received_at)*1000 > freshness_ms):
+            return "TELEMETRY_STALE"
+        if require_reference and not self.referenced:
+            return "NOT_HOMED"
+        if not self.position.finite():
+            return "INVALID_DEVICE_POSITION"
+        return ""
+
     def can_move(self, now: float, freshness_ms: int = 500) -> bool:
-        return self.can_operate_servo(now, freshness_ms) and self.referenced and self.mode == "IDLE"
+        return not self.motion_readiness_error(now, True, freshness_ms) and self.mode == "IDLE"
 
     def can_operate_servo(self, now: float, freshness_ms: int = 500) -> bool:
-        return (self.connected and self.ready and
-                self.mode in ("IDLE", "UNREFERENCED") and self.fault == "NONE" and
-                self.lease_valid and self.commands_enabled and not self.in_flight and
-                self.telemetry_age_ms >= 0 and now >= self.received_at and
-                self.telemetry_age_ms+(now-self.received_at)*1000 <= freshness_ms)
+        return not self.motion_readiness_error(now, False, freshness_ms)
 
 
 def snapshot_from_message(message: dict, now: float) -> DeviceSnapshot:

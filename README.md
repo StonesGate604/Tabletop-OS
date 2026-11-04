@@ -4,6 +4,15 @@ Tabletop OS 是一个把手势感知、HUB75 灯光反馈和 CoreXY 磁力棋子
 
 当前 V0.1 软件实现包含双捏合单棋子交互、独立棋子观测验证、PC 最终 RGB 画面、Pi 设备服务与 Arduino 运动固件。机构为舵机升降永磁铁；本机于 2026-10-26 实测最高吸附角度 81°、最低释放角度 118°，完整实物闭环仍待验收。
 
+Patrol V1 已加入：完整潜行回合、手部接近预览、可配置 AprilTag 逻辑映射、鼠标模拟、摄像头/LED 接入和人工或显式自动守卫运动。软件与模拟验证通过，实物游戏仍待按阶段验收。架构、配置、完整文件清单及运行命令见 [Patrol V1 开发与验收说明](docs/PATROL_V1_ZH.md)。
+
+2026-11-04 实物联调进度：Tag 0 玩家、红色虚拟守卫、8×12 方格地图、手部光标与 5 秒遮挡位置保留；用户确认接近预览可以触发。当前本机配置与恢复方式见 [Patrol 进度快照](pc-runtime/config/checkpoints/2026-11-04/README.md)。
+
+```powershell
+./pc-runtime/.venv/Scripts/python.exe -m tabletop_os --app patrol --simulate
+./pc-runtime/.venv/Scripts/python.exe -m tabletop_os --app patrol --simulate --headless --demo
+```
+
 ## 当前状态
 
 | 部分 | 状态 | 说明 |
@@ -16,7 +25,7 @@ Tabletop OS 是一个把手势感知、HUB75 灯光反馈和 CoreXY 磁力棋子
 
 ## 职责边界
 
-- **PC / Tabletop OS Runtime**：当前管理单棋子交互和观测，合成光标、选择/目标反馈与蓝色运动轨迹；游戏规则和攻击仍是未来扩展。
+- **PC / Tabletop OS Runtime**：管理相机、逻辑身份、接近交互、应用生命周期、渲染和运动请求；Patrol 应用独立负责游戏规则。原单棋子及手势诊断继续保留。
 - **Raspberry Pi**：接收最终像素帧并输出到 HUB75，同时处理可靠控制、状态回传、串口桥接和安全联锁。Pi 不应理解“攻击”“棋子”或“拖影”等游戏概念。
 - **Arduino**：执行 CoreXY、限位、回零、舵机/磁铁与实时安全控制。
 
@@ -82,7 +91,7 @@ python -m venv pc-runtime/.venv
 
 - 网络运动命令默认关闭，必须完成低速、空载、限位和急停验证后才能启用。
 - 软件停止、心跳和看门狗不能替代物理急停。
-- 当前 HUB75 面板存在局部红色通道故障，v0.1 会强制输出 `R=0`。
+- 2026-11-04 用户确认红色通道硬件已修复；Patrol 与 Pi 完整帧输出已恢复 RGB。旧 Pi Bridge 的红色屏蔽需更新程序后解除。
 - 三块 64×32 面板的最终方向与坐标映射仍需在真实 Pi 上校准。
 - 不要提交 SSH 密钥、Wi-Fi 凭据、个人设备路径或本机 `.env` 文件。
 

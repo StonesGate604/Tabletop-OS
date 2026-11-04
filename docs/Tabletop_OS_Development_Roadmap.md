@@ -258,3 +258,34 @@ Suggested framing:
 5. Replace mouse input with calibrated camera-based hand position plus grab and release/confirm gestures; the live cursor behavior must remain unchanged.
 6. Complete the single-piece end-to-end demonstration before adding AprilTag identity, board rules, multiple games, or LLM input.
 
+## 10. Deferred Feature: Occlusion-Resilient Piece State
+
+> Status (2026-10-27): planned for later development. Do not treat this section as implemented behavior or as permission to relax the current motion safety gates.
+
+Goal: preserve a piece's logical state while its marker is temporarily hidden by a hand, glare, or the mechanism, without allowing stale camera data to authorize unsafe physical motion.
+
+### Proposed State Model
+
+- Keep camera measurements, persistent piece tracks, and physical manipulation state as three separate layers.
+- Store each track's last observed pose, observation time, confidence/freshness, pose source, and one explicit state: `VISIBLE`, `OCCLUDED`, `ATTACHED`, `UNVERIFIED`, or `LOST`.
+- A missed frame changes visibility/freshness; it does not delete the piece or silently refresh the old observation timestamp.
+- The UI may retain the last known position indefinitely, but must visibly distinguish live, occluded, predicted, and unverified positions.
+
+### Motion Policy
+
+- Before pickup, retain the selection and last position during occlusion, but keep the carriage released and wait for a bounded, fresh, unique observation within the pickup tolerance before engaging.
+- Once actuator engagement is confirmed, make the carriage position plus the calibrated pickup offset authoritative for the attached piece. Camera loss during an attached drag must not by itself cancel the drag.
+- After release, retain the commanded target as a predicted position and require several new camera samples to verify or correct it.
+- If post-release verification times out, keep the piece as `UNVERIFIED`, show that state to the user, and block further automatic movement of that piece until it is reacquired.
+- A contradictory fresh observation, duplicate marker ID, device fault, disconnect, or explicit stop remains a safety event and must never be hidden by track persistence.
+- Hand/marker overlap may later be used to classify a missing tag as `OCCLUDED`, but it is an enhancement rather than a prerequisite for the state model.
+
+### Acceptance Criteria
+
+1. Covering a selected marker during approach does not erase the selection; the mechanism waits released and does not act from stale pose data.
+2. Covering a marker after confirmed engagement does not interrupt an otherwise healthy drag.
+3. Reappearing markers update the same piece identity and correct the predicted position without a visual jump to another ID.
+4. A piece physically moved while hidden is not picked up from its obsolete cached position.
+5. Release verification survives short occlusion and clearly reports an unresolved `UNVERIFIED` result after its bounded timeout.
+6. Automated tests cover missed frames, long occlusion, reacquisition, duplicate IDs, contradictory positions, disconnects, and stop/reset behavior.
+

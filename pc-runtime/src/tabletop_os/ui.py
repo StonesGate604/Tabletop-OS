@@ -21,20 +21,21 @@ def run_window(runtime, camera: bool):
     image_item = canvas.create_image(0, 0, anchor="nw")
     panel = ttk.Frame(root, padding=16)
     panel.grid(row=0, column=1, sticky="n")
-    title = "仿真模式：不会连接任何硬件" if runtime.simulate else "硬件模式：需标定、回零和设备联锁"
+    title = "Simulation: no hardware connection" if runtime.simulate else "Hardware: calibration, homing and device interlocks required"
     ttk.Label(panel, text=title).pack(anchor="w")
-    ttk.Label(panel, text="移动鼠标定位；左键两次：选中 → 目标确认\n第一次点击后先松开，再移动。\n相机模式用同样的两次捏合。\nSpace：停止；R：恢复；H：回零").pack(anchor="w", pady=10)
+    ttk.Label(panel, text="Move the mouse; click twice: select, then confirm target.\nRelease after the first click before moving.\nCamera mode uses the same two-pinch sequence.\nSpace: stop | R: reset | H: home",
+              wraplength=420, justify="left").pack(anchor="w", pady=10)
     status_label = ttk.Label(panel, width=55, justify="left")
     status_label.pack(anchor="w")
-    ttk.Button(panel, text="STOP / 停止", command=runtime.stop).pack(fill="x", pady=6)
-    ttk.Button(panel, text="恢复到待选状态（不重发任务）", command=runtime.reset).pack(fill="x")
-    ttk.Button(panel, text="HOME / 回零", command=lambda: runtime.home(time.monotonic())).pack(fill="x", pady=6)
+    ttk.Button(panel, text="Stop (Space)", command=runtime.stop).pack(fill="x", pady=6)
+    ttk.Button(panel, text="Reset selection (no command replay)", command=runtime.reset).pack(fill="x")
+    ttk.Button(panel, text="Home (H)", command=lambda: runtime.home(time.monotonic())).pack(fill="x", pady=6)
     if runtime.simulate:
         slip = tk.BooleanVar()
         missing = tk.BooleanVar()
-        ttk.Checkbutton(panel, text="模拟棋子滑脱", variable=slip,
+        ttk.Checkbutton(panel, text="Simulate piece slipping", variable=slip,
                         command=lambda: setattr(runtime.device, "slip", slip.get())).pack(anchor="w")
-        ttk.Checkbutton(panel, text="模拟标签丢失", variable=missing,
+        ttk.Checkbutton(panel, text="Simulate missing tag", variable=missing,
                         command=lambda: setattr(runtime.device, "tag_visible", not missing.get())).pack(anchor="w")
     preview = ttk.Label(panel)
     preview.pack(pady=10)
@@ -94,12 +95,12 @@ def run_window(runtime, camera: bool):
             canvas.itemconfigure(image_item, image=image)
             c, s = runtime.controller, runtime.device.snapshot()
             observed = c.observation.position if c.observation else None
-            status_label.configure(text=f"状态：{c.phase.value} / {runtime.home_stage or runtime.sequence.stage}\n"
-                f"执行器：({s.position.x:.1f}, {s.position.y:.1f}) mm\n"
-                f"棋子观测：{observed}\n目标：{c.target}\n"
-                f"连接：{s.connected}  回零：{s.referenced}  模式：{s.mode}\n"
-                f"舵机标定：{runtime.config.gripper.calibrated}\n"
-                f"已验证移动：{c.completed_moves}\n错误：{c.error or last_vision_error or '无'}")
+            status_label.configure(text=f"State: {c.phase.value} / {runtime.home_stage or runtime.sequence.stage}\n"
+                f"Actuator: ({s.position.x:.1f}, {s.position.y:.1f}) mm\n"
+                f"Observed piece: {observed}\nTarget: {c.target}\n"
+                f"Connected: {s.connected}  Homed: {s.referenced}  Mode: {s.mode}\n"
+                f"Servo calibrated: {runtime.config.gripper.calibrated}\n"
+                f"Verified moves: {c.completed_moves}\nError: {c.error or last_vision_error or 'None'}")
         except Exception:
             LOG.exception("Runtime update failed")
             runtime.stop()

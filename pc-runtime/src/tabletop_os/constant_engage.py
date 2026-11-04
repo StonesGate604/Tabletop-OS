@@ -44,8 +44,9 @@ class ConstantEngageDrag:
                 and self.config.board.contains(target, motion=True)):
             raise RuntimeError('POINT_OUTSIDE_WORKSPACE')
         status = self.device.snapshot()
-        if not status.can_move(now) or not status.position.finite():
-            raise RuntimeError('DEVICE_NOT_READY')
+        readiness_error = status.motion_readiness_error(now)
+        if readiness_error:
+            raise RuntimeError(readiness_error)
         if not self.allow_pickup_offset and status.position.distance(observation.position) > self.config.gripper.pickup_tolerance_mm:
             raise RuntimeError('PICKUP_POSITION_MISMATCH')
         drag_distance = max(status.position.distance(target), observation.position.distance(target))

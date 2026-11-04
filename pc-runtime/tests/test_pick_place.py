@@ -96,7 +96,7 @@ class PickPlaceTests(unittest.TestCase):
                     referenced=True, mode='IDLE', position=Point(2,2))
         self.assertEqual(self.sequence.phase, 'IDLE')
 
-    def test_piece_must_still_be_observed_at_pickup(self):
+    def test_piece_moved_at_pickup_cancels_immediately(self):
         self.sequence.begin(self.start, self.target, .1)
         release = self.sequence.request_id
         self.update(.2, {'type':'actuator.completed','reply_to':release})
@@ -109,6 +109,43 @@ class PickPlaceTests(unittest.TestCase):
         self.assertEqual(self.sequence.error, 'PIECE_MOVED_OR_NOT_OBSERVED_AT_PICKUP')
         self.assertEqual(self.device.requests[-1][0], 'motion.stop')
 
+    def test_brief_pickup_observation_dropout_retries_before_engaging(self):
+        self.sequence.begin(self.start, self.target, .1)
+        release = self.sequence.request_id
+        self.update(.2, {'type':'actuator.completed','reply_to':release})
+        self.update(.81)
+        seek = self.sequence.request_id
+
+        self.update(1.0, {'type':'motion.completed','reply_to':seek},
+                    position=self.start.position)
+        self.assertEqual((self.sequence.phase, self.sequence.stage), ('MOVING', 'ENGAGE'))
+        self.assertIsNone(self.sequence.request_id)
+        self.assertEqual([kind for kind,_,_ in self.device.requests],
+                         ['actuator.servo','motion.move_to'])
+
+        fresh = Observation(7, self.start.position, 1.19)
+        self.update(1.2, observations=(fresh,), position=self.start.position)
+        self.assertEqual(self.device.requests[-1][0], 'actuator.servo')
+        self.assertEqual(self.device.requests[-1][1], {'angle':81})
+        self.assertEqual(self.sequence.phase, 'MOVING')
+
+    def test_missing_pickup_observation_cancels_after_grace_period(self):
+        self.sequence.begin(self.start, self.target, .1)
+        release = self.sequence.request_id
+        self.update(.2, {'type':'actuator.completed','reply_to':release})
+        self.update(.81)
+        seek = self.sequence.request_id
+
+        self.update(1.0, {'type':'motion.completed','reply_to':seek},
+                    position=self.start.position)
+        self.update(1.49, position=self.start.position)
+        self.assertEqual((self.sequence.phase, self.sequence.stage), ('MOVING', 'ENGAGE'))
+
+        self.update(1.5, position=self.start.position)
+        self.assertEqual(self.sequence.phase, 'ERROR')
+        self.assertEqual(self.sequence.error, 'PIECE_MOVED_OR_NOT_OBSERVED_AT_PICKUP')
+        self.assertEqual(self.device.requests[-1][0], 'motion.stop')
+
     def test_uncalibrated_gripper_is_rejected_before_any_command(self):
         with self.assertRaisesRegex(ValueError, 'GRIPPER_NOT_CALIBRATED'):
             PickPlaceDrag(RuntimeConfig(), self.device)
@@ -116,7 +153,7 @@ class PickPlaceTests(unittest.TestCase):
 
     def test_fresh_observation_home_workspace_and_distance_gate_every_sequence(self):
         self.device.state = replace(self.device.state, referenced=False, mode='UNREFERENCED')
-        with self.assertRaisesRegex(RuntimeError, 'DEVICE_NOT_READY'):
+        with self.assertRaisesRegex(RuntimeError, 'NOT_HOMED'):
             self.sequence.begin(self.start,self.target,.1)
         self.device.state = replace(self.device.state, referenced=True, mode='IDLE')
         with self.assertRaisesRegex(RuntimeError, 'PIECE_OBSERVATION_STALE'):
@@ -127,6 +164,22 @@ class PickPlaceTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, 'DRAG_DISTANCE_EXCEEDED'):
             capped.begin(self.start,self.target,.1)
         self.assertEqual(self.device.requests, [])
+
+    def test_home_reports_the_specific_interlock_reason(self):
+        cases = (
+            (dict(commands_enabled=False), 'MOTION_COMMANDS_DISABLED'),
+            (dict(lease_valid=False), 'CONTROL_LEASE_INVALID'),
+            (dict(ready=False), 'ARDUINO_NOT_READY'),
+            (dict(telemetry_age_ms=501), 'TELEMETRY_STALE'),
+        )
+        for fields, error in cases:
+            with self.subTest(error=error):
+                device = FakeDevice()
+                device.state = replace(device.state, **fields)
+                sequence = PickPlaceDrag(self.config, device, speed_mm_s=45)
+                with self.assertRaisesRegex(RuntimeError, error):
+                    sequence.home(.1)
+                self.assertEqual(device.requests, [])
 
     def test_disconnect_stops_once_and_reconnect_does_not_replay(self):
         self.sequence.begin(self.start,self.target,.1)

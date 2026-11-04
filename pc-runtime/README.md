@@ -2,6 +2,17 @@
 
 Python 3.11+。实现单棋子双捏合交互、PC RGB 合成、舵机升降永磁铁动作序列与观测验证。Pi 只显示最终像素并桥接设备。
 
+Patrol V1 使用同一入口，通过 `--app patrol` 启动。它增加接近预览、独立物理交互状态机、严格的 AprilTag → 逻辑棋子映射、潜行回合和完整模拟。真实运动默认关闭。详见 [Patrol 架构、配置及验收说明](../docs/PATROL_V1_ZH.md)。
+
+从仓库根目录运行鼠标模拟或自动完整演示：
+
+```powershell
+./pc-runtime/.venv/Scripts/python.exe -m tabletop_os --app patrol --simulate
+./pc-runtime/.venv/Scripts/python.exe -m tabletop_os --app patrol --simulate --headless --demo
+```
+
+在 `config/patrol.json` 修改 Player/Guard 的 `tag_id` 后重开即可；支持自定义逻辑 ID。悬停不需要点击，拖放并移开鼠标后才提交行动。摄像头预览、LED 人工守卫及安全取放模式的分阶段命令见上述文档。以下原有诊断命令保持可用。
+
 ## 统一 PC 主程序
 
 现在统一使用 `python -m tabletop_os` 启动，默认打开手势拖动应用的预览模式。已有选区时用 `--reuse-map`；系统服务在 `src/tabletop_os/system/`，应用在 `src/tabletop_os/apps/`。完整分工和命令见[PC 主程序与系统/应用分层](../docs/PC_LAYERS_ZH.md)。

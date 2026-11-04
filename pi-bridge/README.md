@@ -4,6 +4,8 @@ Pi Bridge v0.1 负责 TCP/UDP、Arduino 串口、安全联锁以及 HUB75 输出
 
 TCP 7420 负责控制与显示会话，UDP 7422 使用 TOSF v1 重组 64×96 RGB888。三块 64×32 面板沿机械 Y 方向串联，第一块靠近机械 `(0,0)`；UDP 7421 保留旧诊断光标。详见[协议](../protocol/README.md)和[技术说明书](../docs/TABLETOP_OS_TECHNICAL_GUIDE_ZH.md)。
 
+2026-11-04：用户确认红色硬件故障已修复。`frames` 模式现保留 PC 帧的 R/G/B 三通道，不再将红色清零；旧部署需要重新编译更新 Bridge，Arduino 固件无需因此更新。部署步骤见 [Patrol 虚拟守卫与 RGB 更新](../docs/PATROL_VIRTUAL_GUARD_ZH.md)。
+
 新版 HOME/MOVE/SERVO 要求正式固件 CONFIG 输出 LAST_TASK_ID；先更新 Uno 固件，避免旧行为和编号不同步。PC 另有舵机未标定锁，Pi 默认网络运动锁仍保留。
 
 ## Raspberry Pi 安装

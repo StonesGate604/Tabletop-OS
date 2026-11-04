@@ -34,6 +34,7 @@ class PickPlaceDrag:
         self._completed_at = 0.0
         self._last_sample_at = 0.0
         self._last_verified_at = 0.0
+        self._pickup_observation_deadline = 0.0
 
     @property
     def active(self):
@@ -49,8 +50,9 @@ class PickPlaceDrag:
                 and self.config.board.contains(target, motion=True)):
             raise RuntimeError('POINT_OUTSIDE_WORKSPACE')
         status = self.device.snapshot()
-        if not status.can_move(now) or not status.position.finite():
-            raise RuntimeError('DEVICE_NOT_READY')
+        readiness_error = status.motion_readiness_error(now)
+        if readiness_error:
+            raise RuntimeError(readiness_error)
         if self.max_drag_mm is not None and observation.position.distance(target) > self.max_drag_mm:
             raise RuntimeError('DRAG_DISTANCE_EXCEEDED')
         self.selected_id = observation.piece_id
@@ -59,6 +61,7 @@ class PickPlaceDrag:
         self.error = ''
         self.verified_samples = 0
         self._last_sample_at = self._last_verified_at = 0.0
+        self._pickup_observation_deadline = 0.0
         travel = status.position.distance(self.start)+self.start.distance(target)
         self._deadline = now+max(cfg.command_timeout_s,
                                  travel/self.speed_mm_s+4*self.config.gripper.settle_s+20)
@@ -70,8 +73,9 @@ class PickPlaceDrag:
         if self.phase != 'IDLE':
             raise RuntimeError('MOTION_BUSY' if self.active else 'RESET_REQUIRED')
         status = self.device.snapshot()
-        if not math.isfinite(now) or not status.can_operate_servo(now):
-            raise RuntimeError('DEVICE_NOT_READY')
+        readiness_error = status.motion_readiness_error(now, require_reference=False)
+        if readiness_error:
+            raise RuntimeError(readiness_error)
         self.selected_id = self.start = self.target = None
         self.error = ''
         self.phase = 'HOMING'
@@ -116,6 +120,9 @@ class PickPlaceDrag:
                 if next_stage:
                     self.request_id = None
                     self.stage = next_stage
+                    if next_stage == 'ENGAGE':
+                        self._pickup_observation_deadline = (
+                            now+self.config.interaction.observation_timeout_ms/1000)
 
         status = self.device.snapshot()
         if not self._healthy(status, now):
@@ -175,9 +182,15 @@ class PickPlaceDrag:
                     'actuator.servo', angle=self.config.gripper.release_angle)
             elif self.stage == 'ENGAGE':
                 tag = self._fresh_selected(observations, now)
-                if tag is None or tag.position.distance(self.start) > self.config.gripper.pickup_tolerance_mm:
+                if tag is None:
+                    if now < self._pickup_observation_deadline:
+                        return
                     self.cancel('PIECE_MOVED_OR_NOT_OBSERVED_AT_PICKUP')
                     return
+                if tag.position.distance(self.start) > self.config.gripper.pickup_tolerance_mm:
+                    self.cancel('PIECE_MOVED_OR_NOT_OBSERVED_AT_PICKUP')
+                    return
+                self._pickup_observation_deadline = 0.0
                 self.request_id = self.device.request(
                     'actuator.servo', angle=self.config.gripper.engage_angle)
             elif self.stage == 'HOMING':
@@ -249,3 +262,4 @@ class PickPlaceDrag:
         self.verified_samples = 0
         self._deadline = self._settle_until = self._completed_at = 0.0
         self._last_sample_at = self._last_verified_at = 0.0
+        self._pickup_observation_deadline = 0.0
