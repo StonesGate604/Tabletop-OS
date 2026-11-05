@@ -21,13 +21,13 @@ Patrol V1 已加入：完整潜行回合、手部接近预览、可配置 AprilT
 | Pi Bridge | 协议测试通过；PC→Pi→Arduino 与灯板反馈已现场联动 | TCP 控制、TOSF 帧接收、串口桥接、安全联锁；三屏映射及长期稳定性仍需进一步核验 |
 | PC Runtime | 仿真测试通过；磁力吸附→拖动→释放已多轮实测 | 双捏合、标签遮挡保持、灯板/机械双映射、118°/81° 取放序列；位置观测与异常恢复仍需完整记录 |
 | 最终帧协议 | 已实现并跨 Python/C++ 验证 | UDP 7422，完整 64×96 RGB888、CRC32、会话和超时 |
-| 实体棋子运动 Demo | 核心取放动作已多轮成功；尚无正式游戏 | 开发者确认实机吸附、拖动、释放可用；后续量化重复成功率、升降稳定时间、安全间距、相机精度与长时间运行表现 |
+| 实体棋子运动 Demo | 核心取放动作已多轮成功；Patrol 完整实物游戏待验收 | 开发者确认实机吸附、拖动、释放可用；后续量化重复成功率、升降稳定时间、安全间距、相机精度与长时间运行表现 |
 
 ## 2026-10-30 实机状态补充
 
 - **已由开发者现场确认**：实体装置成功重复执行磁铁吸附、CoreXY 拖动和释放棋子的完整动作，已不属于「只通过离线仿真」阶段。
 - **并不等同于已完成的测试**：目前仓库未记录标准化测试轮数、成功率、全桌精度、多人/多棋子避碰和故障恢复统计。旧验证文档中的「待验收」对应其撰写时的测试进度，不应覆盖这次新的实测反馈。
-- **下一个重点**：在现有可靠移动能力上实现第一个小型游戏 Application，并开展完整回合的现场测试。
+- **当时的后续计划**：在现有可靠移动能力上实现第一个小型游戏 Application，并开展完整回合的现场测试。该应用现已实现为 Patrol，当前进度见本文开头与 Patrol 文档。
 
 ## 职责边界
 
@@ -39,7 +39,7 @@ Pi 默认 `display.mode=frames` 只显示 PC 像素；设为 `diagnostic` 才使
 
 ## 游戏 Application 接入现状
 
-当前 PC 代码已有 `TabletopSystem` 服务门面（`pc-runtime/src/tabletop_os/system/session.py`），但**尚无正式游戏引擎或自动注册游戏插件的 API**；`cli.py` 目前只接受 `gesture-drag`、`single-piece` 两种应用。游戏需要增加新的 Application、启动分支和游戏画面渲染，不能直接使用现有 CLI 参数启动。
+PC 代码已有 `TabletopSystem` 服务门面（`pc-runtime/src/tabletop_os/system/session.py`），当前 CLI 接受 `gesture-drag`、`single-piece`、`patrol` 三种应用。Patrol 通过 `ApplicationHost` 与 `ApplicationRuntime` 管理生命周期、逻辑棋子事件、回合及运动请求，并使用独立棋盘渲染；尚未实现自动注册游戏插件的 API。新增游戏仍需添加应用实现与启动分支。
 
 现有应用可复用以下服务接口：
 
@@ -47,9 +47,9 @@ Pi 默认 `display.mode=frames` 只显示 PC 像素；设为 `diagnostic` 才使
 - `system.request_move(piece_id, target_display, now)`：请求移动指定实体棋子，目标使用**64×96 灯板的逻辑像素坐标**（`Point`），由系统转换成机械毫米坐标，并实施安全检查及吸附/拖动/释放序列。需要启用经过标定的取放模式、有新鲜机械观测且设备就绪；只受理任务，不会立即完成。
 - `system.motion_view`：查看 `enabled`、`phase`、`stage`、`error`、`selected_id`、`target`、`device`；**只有视觉验证到位后才进入 `DONE`**。结束后需显式 `system.reset()` 才能开始下一轮运动。
 - `system.snapshot()`、`system.display_status()`：查询设备状态和显示链路状态；`system.cancel()`、`system.stop()`、`system.home(now)`、`system.reset()`：运动控制与恢复入口。
-- `system.publish(scene)`：目前只支持手势应用的 `Scene`（指针、标签、选中、目标）和对应的 `pointer_frame`，还**不支持游戏棋盘、地形或动画场景的通用渲染接口**。
+- `system.publish(scene)`：保留手势应用的 `Scene`（指针、标签、选中、目标）和对应的 `pointer_frame`；Patrol 使用自己的棋盘渲染，通过 `system.publish_rgb(...)` 发布完整 RGB 帧。目前没有统一的游戏地形或动画场景 API。
 
-每一帧的既有调用顺序见 `pc-runtime/src/tabletop_os/gesture_ui.py`：`camera.analyze(...)` → `system.update(...)` → `app.update(...)` → `app.scene(...)` → `system.publish(...)`。新游戏最好沿用此边界，由应用维护回合、规则、玩家/NPC 行动意图，系统负责真实观测、运动与设备通信。参见 [PC 主程序与系统/应用分层](docs/PC_LAYERS_ZH.md)。
+手势应用的逐帧调用顺序见 `pc-runtime/src/tabletop_os/gesture_ui.py`：`camera.analyze(...)` → `system.update(...)` → `app.update(...)` → `app.scene(...)` → `system.publish(...)`。Patrol 的对应入口为 `patrol_ui.py` 和 `ApplicationRuntime.tick(...)`。应用维护回合、规则、玩家/NPC 行动意图，系统负责真实观测、运动与设备通信。参见 [PC 主程序与系统/应用分层](docs/PC_LAYERS_ZH.md)及 [Patrol 架构与验收说明](docs/PATROL_V1_ZH.md)。
 
 ## 仓库结构
 
