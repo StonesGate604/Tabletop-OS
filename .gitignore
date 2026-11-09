@@ -13,6 +13,9 @@ __pycache__/
 **/.cache/
 /tmp/
 
+# Local art and asset files.
+/assets/
+
 # Editor, OS, and local agent state.
 /.agents/
 /.codex/
